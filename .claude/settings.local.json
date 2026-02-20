@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(go get:*)",
+      "Bash(go build:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx vite:*)",
+      "Bash(find:*)",
+      "Bash(xxd:*)",
+      "Bash(python3:*)",
+      "Bash(where:*)",
+      "Bash(node -e \"\nconst fs = require\\(''fs''\\);\nlet content = fs.readFileSync\\(''handlers/websocket.go'', ''utf8''\\);\n\n// 1. Replace product message format\ncontent = content.replace\\(\n  /\\\\/\\\\/ Mensaje para Anthropic - usar fill_product_form para llenado visual\\\\r?\\\\n\\\\t+userMessage = fmt\\\\.Sprintf\\\\\\(\\\\x60Usuario quiere crear producto para categor[^\\\\x60]+\\\\x60,\\\\r?\\\\n\\\\t+\\\\*payload\\\\.CategoriaId, payload\\\\.Text\\\\\\)/,\n  ''// Mensaje para Anthropic con contexto del formulario\\\\r\\\\n\\\\t\\\\t\\\\t\\\\tuserMessage = fmt.Sprintf\\(\\\\x60Usuario dice: \"\"%s\"\"%s\\\\x60,\\\\r\\\\n\\\\t\\\\t\\\\t\\\\t\\\\tpayload.Text, buildFormContext\\(payload.Contexto\\)\\)''\n\\);\n\n// 2. Replace client message format\ncontent = content.replace\\(\n  /userMessage = fmt\\\\.Sprintf\\\\\\(\\\\x60Usuario dict[^\\\\x60]+direccion\"\"\\\\.\\\\x60, payload\\\\.Text\\\\\\)/,\n  ''userMessage = fmt.Sprintf\\(\\\\x60Usuario dice: \"\"%s\"\"%s\\\\x60,\\\\r\\\\n\\\\t\\\\t\\\\t\\\\t\\\\tpayload.Text, buildFormContext\\(payload.Contexto\\)\\)''\n\\);\n\n// 3. Replace category message format\ncontent = content.replace\\(\n  /userMessage = fmt\\\\.Sprintf\\\\\\(\\\\x60Usuario dict[^\\\\x60]+descripcion\\\\.\\\\x60, payload\\\\.Text\\\\\\)/,\n  ''userMessage = fmt.Sprintf\\(\\\\x60Usuario dice: \"\"%s\"\"%s\\\\x60,\\\\r\\\\n\\\\t\\\\t\\\\t\\\\t\\\\tpayload.Text, buildFormContext\\(payload.Contexto\\)\\)''\n\\);\n\n// 4. Enable conversation memory for ALL form modules\ncontent = content.replace\\(\n  /\\\\} else if modulo == \"\"crear_combo\"\" \\\\|\\\\| modulo == \"\"crear_configuracion\"\" \\\\{\\\\r?\\\\n\\\\t+\\\\/\\\\/ Recuperar historial previo para combos y configuración\\\\r?\\\\n\\\\t+history = clientHistory\\\\[client\\\\]/,\n  ''} else if modulo != \"\"\"\" {\\\\r\\\\n\\\\t\\\\t\\\\t// Recuperar historial previo para todos los módulos de formulario\\\\r\\\\n\\\\t\\\\t\\\\thistory = clientHistory[client]''\n\\);\n\n// 5. Enable saving history for ALL form modules\ncontent = content.replace\\(\n  /\\\\/\\\\/ Guardar historial actualizado \\\\\\(para combo y configuración\\\\\\)\\\\r?\\\\n\\\\t+if modulo == \"\"crear_combo\"\" \\\\|\\\\| modulo == \"\"crear_configuracion\"\" \\\\{/,\n  ''// Guardar historial actualizado para todos los módulos de formulario\\\\r\\\\n\\\\t\\\\tif modulo != \"\"\"\" {''\n\\);\n\nfs.writeFileSync\\(''handlers/websocket.go'', content, ''utf8''\\);\nconsole.log\\(''Done - all replacements applied''\\);\n\")",
+      "Bash(pushd:*)",
+      "Read(//c/proyecto/**)",
+      "Bash(curl:*)",
+      "Bash(for file in c:/proyecto/fronted_Aura/src/Admin.jsx c:/proyecto/fronted_Aura/src/App2.jsx c:/proyecto/fronted_Aura/src/components/MiniVoiceChat.jsx c:/proyecto/fronted_Aura/src/context/SucursalContext.jsx c:/proyecto/fronted_Aura/src/context/VoiceAgentContext.jsx c:/proyecto/fronted_Aura/src/funciones/CajaContext.jsx)",
+      "Bash(do sed -i '/console\\\\.\\\\\\(log\\\\|warn\\\\|error\\\\\\)/d' \"$file\")",
+      "Bash(done)",
+      "Bash(for file in c:/proyecto/fronted_Aura/src/pages/CerrarCaja.jsx c:/proyecto/fronted_Aura/src/pages/ChatMCP.jsx c:/proyecto/fronted_Aura/src/pages/ChatProductos.jsx c:/proyecto/fronted_Aura/src/pages/combo.jsx c:/proyecto/fronted_Aura/src/pages/configuracion.jsx c:/proyecto/fronted_Aura/src/pages/dashboards.jsx)",
+      "Bash(for file in c:/proyecto/fronted_Aura/src/pages/login.jsx c:/proyecto/fronted_Aura/src/pages/MiPerfil.jsx c:/proyecto/fronted_Aura/src/pages/pagos.jsx c:/proyecto/fronted_Aura/src/pages/productos.jsx c:/proyecto/fronted_Aura/src/pages/Registro.jsx c:/proyecto/fronted_Aura/src/pages/reportes.jsx)",
+      "Bash(for file in c:/proyecto/fronted_Aura/src/pages/reservaGrupal.jsx c:/proyecto/fronted_Aura/src/pages/reservas.jsx c:/proyecto/fronted_Aura/src/pages/Sucursales.jsx c:/proyecto/fronted_Aura/src/pages/usuarios.jsx c:/proyecto/fronted_Aura/src/pages/ventas.jsx)"
+    ]
+  }
+}
