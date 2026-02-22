@@ -790,6 +790,9 @@ export default function CerrarCaja() {
                   <th className="px-1.5 py-1 text-left text-[10px]">Cierre</th>
                   <th className="px-1.5 py-1 text-right text-[10px]">S. Inicial</th>
                   <th className="px-1.5 py-1 text-right text-[10px]">S. Final</th>
+                  <th className="px-1.5 py-1 text-right text-[10px]">Ventas</th>
+                  <th className="px-1.5 py-1 text-right text-[10px]">Reservas</th>
+                  <th className="px-1.5 py-1 text-center text-[10px]">Dif. Arqueo</th>
                   <th className="px-1.5 py-1 text-center text-[10px]">Estado</th>
                   <th className="px-1.5 py-1 text-center text-[10px]">PDF</th>
                 </tr>
@@ -797,7 +800,7 @@ export default function CerrarCaja() {
               <tbody>
                 {cargandoHistorial ? (
                   <tr>
-                    <td colSpan={7} className="p-3 text-center">
+                    <td colSpan={10} className="p-3 text-center">
                       <Loader2 className="w-4 h-4 animate-spin mx-auto text-blue-600" />
                     </td>
                   </tr>
@@ -806,6 +809,7 @@ export default function CerrarCaja() {
                     const fechaAp = caja.fecha_apertura || caja.CreatedAt;
                     const fechaCi = caja.fecha_cierre;
                     const estaCerrada = !!fechaCi && fechaCi !== "0001-01-01T00:00:00Z";
+                    const difArqueo = parseFloat(caja.diferencia_arqueo || 0);
                     return (
                       <tr key={caja.ID || caja.id || idx} className="border-b hover:bg-blue-50 text-xs">
                         <td className="px-1.5 py-1 text-gray-500">{idx + 1}</td>
@@ -826,6 +830,25 @@ export default function CerrarCaja() {
                         </td>
                         <td className="px-1.5 py-1 text-right font-medium">
                           {estaCerrada ? `S/ ${parseFloat(caja.saldo_final || 0).toFixed(2)}` : "-"}
+                        </td>
+                        <td className="px-1.5 py-1 text-right font-medium text-blue-700">
+                          S/ {parseFloat(caja.total_ventas || 0).toFixed(2)}
+                        </td>
+                        <td className="px-1.5 py-1 text-right font-medium text-blue-700">
+                          S/ {parseFloat(caja.total_reservas || 0).toFixed(2)}
+                        </td>
+                        <td className="px-1.5 py-1 text-center">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            difArqueo === 0
+                              ? "bg-green-200 text-green-800"
+                              : difArqueo > 0
+                              ? "bg-blue-200 text-blue-800"
+                              : "bg-red-200 text-red-800"
+                          }`}>
+                            {difArqueo === 0
+                              ? "Cuadre"
+                              : `${difArqueo > 0 ? "+" : ""}S/ ${difArqueo.toFixed(2)}`}
+                          </span>
                         </td>
                         <td className="px-1.5 py-1 text-center">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
@@ -852,7 +875,7 @@ export default function CerrarCaja() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="p-3 text-center text-gray-500 text-xs">
+                    <td colSpan={10} className="p-3 text-center text-gray-500 text-xs">
                       No se encontraron cajas en el rango seleccionado
                     </td>
                   </tr>
@@ -1029,56 +1052,55 @@ export default function CerrarCaja() {
           {/* Panel izquierdo - Formulario de cierre */}
           <div className="md:col-span-1">
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="bg-blue-200 p-3">
-                <h2 className="text-sm font-bold text-center text-gray-800">
+              <div className="bg-blue-400 p-2">
+                <h2 className="text-sm font-bold text-center text-white">
                   CERRAR CAJA
                 </h2>
               </div>
 
-              <div className="p-4 space-y-4">
+              <div className="p-3 space-y-3 bg-sky-50">
                 {/* Info de caja actual */}
-                <div className="bg-gray-100 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-gray-600 text-xs">
-                    <Clock className="w-4 h-4" />
+                <div className="bg-white rounded p-2 space-y-1">
+                  <div className="flex items-center gap-1.5 text-gray-600 text-[10px]">
+                    <Clock className="w-3 h-3" />
                     <span>Abierta: {new Date(cajaActual?.fecha_apertura).toLocaleString("es-PE")}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Saldo Inicial:</span>
-                    <span className="text-lg font-bold text-blue-600">
+                    <span className="text-xs font-medium text-gray-700">Saldo Inicial:</span>
+                    <span className="text-sm font-bold text-blue-600">
                       S/ {cajaActual?.saldo_inicial?.toFixed(2)}
                     </span>
                   </div>
                 </div>
 
                 {/* Efectivo esperado */}
-                <div className="bg-blue-100 rounded-lg p-3">
-                  <p className="text-xs text-gray-600 mb-1">Efectivo Esperado</p>
-                  <p className="text-lg sm:text-xl font-bold text-blue-700">
+                <div className="bg-blue-100 rounded p-2">
+                  <p className="text-[10px] text-gray-600">Efectivo Esperado</p>
+                  <p className="text-sm font-bold text-blue-700">
                     S/ {((cajaActual?.saldo_inicial || 0) + (reporte?.resumen_por_medio?.efectivo || 0)).toFixed(2)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-[10px] text-gray-500">
                     Saldo inicial + Efectivo recibido
                   </p>
                 </div>
 
                 {/* Formulario */}
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
                   {/* Saldo final */}
-                  <div className="relative pt-2">
-                    <label className="absolute -top-1 left-3 bg-white px-2 text-xs font-medium text-gray-600 z-10 flex items-center gap-1">
-                      Efectivo Contado
-                      <span className="text-red-500">*</span>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Efectivo Contado <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <DollarSign className="w-5 h-5 text-gray-400" />
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <DollarSign className="w-4 h-4 text-gray-400" />
                       </div>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
                         placeholder="0.00"
-                        className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg text-lg font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
+                        className={`w-full pl-8 pr-3 py-1.5 border rounded text-sm font-medium focus:ring-1 focus:ring-blue-400 focus:border-blue-400 ${
                           errors.saldo_final ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
                         {...register("saldo_final", {
@@ -1088,8 +1110,8 @@ export default function CerrarCaja() {
                       />
                     </div>
                     {errors.saldo_final && (
-                      <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
+                      <p className="mt-0.5 text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
                         {errors.saldo_final.message}
                       </p>
                     )}
@@ -1097,22 +1119,22 @@ export default function CerrarCaja() {
 
                   {/* Diferencia (arqueo) */}
                   {arqueo && (
-                    <div className={`rounded-lg p-3 ${
+                    <div className={`rounded p-2 ${
                       arqueo.diferencia === 0
                         ? "bg-green-100 border border-green-300"
                         : arqueo.diferencia > 0
                         ? "bg-blue-100 border border-blue-300"
                         : "bg-red-100 border border-red-300"
                     }`}>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
                         {arqueo.diferencia === 0 ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          <CheckCircle2 className="w-4 h-4 text-green-600" />
                         ) : arqueo.diferencia > 0 ? (
-                          <TrendingUp className="w-5 h-5 text-blue-600" />
+                          <TrendingUp className="w-4 h-4 text-blue-600" />
                         ) : (
-                          <TrendingDown className="w-5 h-5 text-red-600" />
+                          <TrendingDown className="w-4 h-4 text-red-600" />
                         )}
-                        <span className="font-medium text-sm">
+                        <span className="font-medium text-xs">
                           {arqueo.diferencia === 0
                             ? "Cuadre perfecto"
                             : arqueo.diferencia > 0
@@ -1120,7 +1142,7 @@ export default function CerrarCaja() {
                             : "Faltante"}
                         </span>
                       </div>
-                      <p className={`text-xl font-bold ${
+                      <p className={`text-sm font-bold ${
                         arqueo.diferencia === 0
                           ? "text-green-700"
                           : arqueo.diferencia > 0
@@ -1133,43 +1155,43 @@ export default function CerrarCaja() {
                   )}
 
                   {/* Observaciones */}
-                  <div className="relative pt-2">
-                    <label className="absolute -top-1 left-3 bg-white px-2 text-xs font-medium text-gray-600 z-10">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Observaciones
                     </label>
                     <textarea
                       rows="2"
                       placeholder="Notas adicionales..."
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none text-sm"
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded focus:ring-1 focus:ring-blue-400 focus:border-blue-400 resize-none text-xs"
                       {...register("observaciones")}
                     />
                   </div>
 
                   {/* Botones */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2">
                     {!cajaDiaAnterior && (
                       <button
                         type="button"
                         onClick={() => navigate(-1)}
-                        className="flex items-center justify-center gap-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                        className="flex items-center justify-center gap-1 px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors text-xs"
                       >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-3.5 h-3.5" />
                         Volver
                       </button>
                     )}
                     <button
                       type="submit"
                       disabled={cargando}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white font-bold rounded hover:bg-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                     >
                       {cargando ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           Cerrando...
                         </>
                       ) : (
                         <>
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" />
                           Cerrar Caja
                         </>
                       )}
@@ -1183,13 +1205,13 @@ export default function CerrarCaja() {
           {/* Panel derecho - Resumen del día */}
           <div className="md:col-span-2">
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="bg-blue-200 p-3">
-                <h2 className="text-sm font-bold text-center text-gray-800">
+              <div className="bg-blue-300 p-2">
+                <h2 className="text-sm font-bold text-center text-white">
                   RESUMEN DEL DÍA
                 </h2>
               </div>
 
-              <div className="p-4 space-y-4">
+              <div className="p-3 space-y-3">
                 {/* Resumen por Método de Pago */}
                 <div>
                   <h3 className="font-medium text-gray-700 mb-2 flex items-center gap-2 text-sm">

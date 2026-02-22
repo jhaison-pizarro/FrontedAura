@@ -36,7 +36,6 @@ import {
   Sun,
   Moon,
   LogOut,
-  UserCircle,
   ShoppingCart,
   Calendar,
   Users,
@@ -674,15 +673,17 @@ function Nav({ onMenuClick }) {
                 onClick={() => setOpenUserMenu(!openUserMenu)}
                 className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
-                {usuario?.imagenUrl ? (
+                {(usuario?.imagen || usuario?.imagenUrl) ? (
                   <img
-                    src={buildImageUrl(usuario.imagenUrl)}
+                    src={buildImageUrl(usuario.imagen || usuario.imagenUrl)}
                     alt="Usuario"
-                    className="w-8 h-8 rounded-full object-cover border-2 border-slate-500 dark:border-gray-400"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-blue-400"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center">
-                    <UserCircle className="w-5 h-5 text-white" />
+                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {(usuario?.nombre || "U")[0].toUpperCase()}
+                    </span>
                   </div>
                 )}
               </button>

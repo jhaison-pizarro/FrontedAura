@@ -330,11 +330,13 @@ export default function Combos() {
       return (
         <div key={id} className="mb-1" style={{ marginLeft: nivel * 12 }}>
           <div
-            onClick={() => onShowProducts(id)}
+            onClick={() => tieneHijos ? toggleCategoria(id) : onShowProducts(id)}
             className={`flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-all duration-200 ${
               estaSeleccionada
                 ? "bg-blue-500 text-white border-blue-500 shadow-md"
-                : "bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm"
+                : tieneHijos
+                  ? "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                  : "bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm"
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -342,25 +344,18 @@ export default function Combos() {
                 <span className={`text-sm flex-shrink-0 ${estaSeleccionada ? "text-white/70" : "text-gray-400"}`}>↳</span>
               )}
               {tieneHijos && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); toggleCategoria(id); }}
-                  className={`flex-shrink-0 p-0.5 rounded transition-colors ${
-                    estaSeleccionada ? "hover:bg-white/20" : "hover:bg-sky-200"
-                  }`}
-                >
+                <span className="flex-shrink-0 p-0.5">
                   {estaExpandida ? (
-                    <ChevronDown size={12} className={estaSeleccionada ? "text-white" : "text-sky-600"} />
+                    <ChevronDown size={12} className="text-sky-600" />
                   ) : (
-                    <ChevronRight size={12} className={estaSeleccionada ? "text-white" : "text-sky-600"} />
+                    <ChevronRight size={12} className="text-sky-600" />
                   )}
-                </button>
+                </span>
               )}
-              <span className={`text-xs font-medium truncate ${estaSeleccionada ? "text-white" : "text-gray-700"}`}>{nombre}</span>
+              <span className={`text-xs font-medium truncate ${estaSeleccionada ? "text-white" : tieneHijos ? "text-gray-600" : "text-gray-700"}`}>{nombre}</span>
             </div>
             {tieneHijos && (
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium ${
-                estaSeleccionada ? "bg-white/20 text-white" : "text-blue-600 bg-blue-100"
-              }`}>
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0 font-medium text-blue-600 bg-blue-100">
                 {sub.length}
               </span>
             )}

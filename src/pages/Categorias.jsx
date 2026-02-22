@@ -249,28 +249,27 @@ export default function Categorias() {
         <div key={id} className="mb-1.5">
           <div
             className={`p-2 border rounded-lg shadow-sm ${
-              nivel === 0 ? "bg-sky-50" : "bg-white"
+              tieneHijas
+                ? "bg-gray-50 cursor-pointer hover:bg-gray-100"
+                : nivel === 0 ? "bg-sky-50" : "bg-white"
             }`}
             style={{ marginLeft: nivel * 20 }}
+            onClick={() => tieneHijas && toggleCollapse(id)}
           >
             <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                 {tieneHijas ? (
-                  <button
-                    onClick={() => toggleCollapse(id)}
-                    className="flex-shrink-0 p-0.5 rounded hover:bg-sky-200 transition-colors"
-                    title={estaColapsado ? "Expandir" : "Colapsar"}
-                  >
+                  <span className="flex-shrink-0 p-0.5">
                     {estaColapsado ? (
                       <ChevronRight size={14} className="text-sky-700" />
                     ) : (
                       <ChevronDown size={14} className="text-sky-700" />
                     )}
-                  </button>
+                  </span>
                 ) : (
                   <span className="w-5 flex-shrink-0" />
                 )}
-                <p className="font-semibold text-gray-800 truncate text-xs">
+                <p className={`font-semibold truncate text-xs ${tieneHijas ? "text-gray-600" : "text-gray-800"}`}>
                   {nivel > 0 && "⤷ "}
                   {nombre}
                 </p>
@@ -286,7 +285,7 @@ export default function Categorias() {
 
               <div className="flex gap-1.5 flex-shrink-0">
                 <button
-                  onClick={() => handleEdit(cat)}
+                  onClick={(e) => { e.stopPropagation(); handleEdit(cat); }}
                   className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded flex items-center gap-1"
                   title="Editar"
                 >
@@ -294,7 +293,7 @@ export default function Categorias() {
                   <span className="text-xs hidden sm:inline">Editar</span>
                 </button>
                 <button
-                  onClick={() => setConfirmDelete(id)}
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(id); }}
                   className="px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded flex items-center gap-1"
                   title="Eliminar"
                 >

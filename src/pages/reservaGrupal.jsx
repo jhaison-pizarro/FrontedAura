@@ -33,19 +33,23 @@ import {
   calcularStockDisponiblePorFecha,
   calcularStockConsumidoEnListaLocal,
   calcularStockConsumidoEnOtrosMiembros,
+  buildMensajeDiaSiguiente,
 } from "../funciones/stockDisponibilidad";
 import VoiceMicButton from "../components/VoiceMicButton";
 import { API_BASE_URL } from "../config";
 import { buildImageUrl } from "../funciones/imageUtils";
 import { useSucursal } from "../context/SucursalContext";
+import { useSessionState, useFormPersist } from "../funciones/useSessionState";
 
 const API_BASE = API_BASE_URL;
+
+const norm = (str) => (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
 export function ReservaGrupal() {
   const { sucursalActual } = useSucursal();
 
   // ==================== ESTADO DE PESTAÑAS ====================
-  const [pestanaActiva, setPestanaActiva] = useState("nueva");
+  const [pestanaActiva, setPestanaActiva, clearPestana] = useSessionState("grupal_tab", "nueva");
   const [grupoEnEdicion, setGrupoEnEdicion] = useState(null);
   const [grabandoNombreGrupo, setGrabandoNombreGrupo] = useState(false);
   const [grabandoDireccion, setGrabandoDireccion] = useState(false);
@@ -59,19 +63,19 @@ export function ReservaGrupal() {
   const [loading, setLoading] = useState(false);
 
   // ==================== ESTADOS DEL GRUPO ====================
-  const [responsable, setResponsable] = useState(null);
-  const [miembrosGrupo, setMiembrosGrupo] = useState([]);
+  const [responsable, setResponsable, clearResponsable] = useSessionState("grupal_responsable", null);
+  const [miembrosGrupo, setMiembrosGrupo, clearMiembros] = useSessionState("grupal_miembros", []);
   const [clienteExistenteResponsable, setClienteExistenteResponsable] =
     useState(null);
 
   // ==================== ESTADOS DEL MIEMBRO ACTUAL ====================
   const [clienteExistenteMiembro, setClienteExistenteMiembro] = useState(null);
   const [datosReniecMiembro, setDatosReniecMiembro] = useState(null);
-  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
+  const [productosSeleccionados, setProductosSeleccionados, clearProductos] = useSessionState("grupal_productos", []);
   const productosSeleccionadosRef = useRef([]);
-  const [pagosAgregados, setPagosAgregados] = useState([]);
+  const [pagosAgregados, setPagosAgregados, clearPagos] = useSessionState("grupal_pagos", []);
   const [costoTotal, setCostoTotal] = useState(0);
-  const [adelanto, setAdelanto] = useState(0);
+  const [adelanto, setAdelanto, clearAdelanto] = useSessionState("grupal_adelanto", 0);
   const [barcode, setBarcode] = useState("");
   const [barcodeCombo, setBarcodeCombo] = useState("");
 
@@ -132,19 +136,6 @@ export function ReservaGrupal() {
     setShowConfirmModal(true);
   };
 
-  // Helper para construir mensaje detallado de reservas del día siguiente
-  function buildMensajeDiaSiguiente(nombreProducto, reservasDiaSiguiente) {
-    const totalDiaSiguiente = reservasDiaSiguiente.reduce((sum, r) => sum + r.cantidad, 0);
-    const detalleReservas = reservasDiaSiguiente.map((r) => {
-      const cliente = r.cliente;
-      const nombreCliente = cliente
-        ? `${cliente.nombre || cliente.Nombre || ""} ${cliente.apellidos || cliente.Apellidos || ""}`.trim()
-        : "Cliente desconocido";
-      return `  • Reserva #${r.idReserva} — ${nombreCliente} (${r.cantidad} unid.)`;
-    }).join("\n");
-    return `"${nombreProducto}" tiene ${totalDiaSiguiente} unidad(es) alquiladas para el día siguiente:\n${detalleReservas}\n\nAsegúrese de que el cliente devuelva a tiempo.`;
-  }
-
   // ==================== ESTADOS MODAL EDITAR MIEMBRO INDIVIDUAL ====================
   const [showModalEditarMiembro, setShowModalEditarMiembro] = useState(false);
   const [miembroParaEditar, setMiembroParaEditar] = useState(null);
@@ -161,6 +152,8 @@ export function ReservaGrupal() {
   const [pagoCompletarData, setPagoCompletarData] = useState(null);
   const [showPagoGrupoModal, setShowPagoGrupoModal] = useState(false);
   const [pagoGrupoData, setPagoGrupoData] = useState(null);
+  const [estadoDropdownMiembroId, setEstadoDropdownMiembroId] = useState(null);
+  const [estadoDropdownPos, setEstadoDropdownPos] = useState({});
 
   // ==================== ESTADOS IMAGEN RESPONSABLE ====================
   const [imagenResponsable, setImagenResponsable] = useState(null);
@@ -208,6 +201,27 @@ export function ReservaGrupal() {
       fechaEvento: "",
     },
   });
+  const { clearFormPersist } = useFormPersist("grupal_rhf", { watch, setValue });
+
+  // Función centralizada para limpiar formulario grupal
+  function limpiarFormularioGrupal() {
+    reset();
+    setResponsable(null);
+    setMiembrosGrupo([]);
+    setProductosSeleccionados([]);
+    setPagosAgregados([]);
+    setAdelanto(0);
+    setCostoTotal(0);
+    setGrupoEnEdicion(null);
+    setClienteExistenteResponsable(null);
+    // Limpiar sessionStorage
+    clearResponsable();
+    clearMiembros();
+    clearProductos();
+    clearPagos();
+    clearAdelanto();
+    clearFormPersist();
+  }
 
   // ==================== FETCH CONFIG EMPRESA ====================
   async function fetchConfigEmpresa() {
@@ -430,10 +444,13 @@ export function ReservaGrupal() {
       const res = await fetchAuth(`${API_BASE}/reservas?incluir_grupales=true`);
       if (res.ok) {
         const data = await res.json();
-        setTodasLasReservas(filtrarReservasActivas(data));
+        const filtradas = filtrarReservasActivas(data);
+        setTodasLasReservas(filtradas);
+        return filtradas; // retornar datos frescos para uso inmediato
       }
     } catch (err) {
     }
+    return todasLasReservas; // fallback al estado actual
   }
 
   async function fetchReservasGrupales() {
@@ -497,7 +514,49 @@ export function ReservaGrupal() {
         }),
       );
 
-      setReservasGrupales(gruposConMiembros);
+      // Auto-sincronizar estado de cada grupo según sus miembros
+      const secuencia = ["reservado", "listo", "entregado", "devuelto"];
+      const gruposSincronizados = await Promise.all(
+        gruposConMiembros.map(async (grupo) => {
+          const miembrosActivos = (grupo.miembros || []).filter((m) => {
+            const del = m.DeletedAt || m.deleted_at;
+            if (del && del !== "0001-01-01T00:00:00Z") return false;
+            const est = (m.estado || "").toLowerCase();
+            return est !== "anulado" && est !== "cancelado";
+          });
+          if (miembrosActivos.length === 0) return grupo;
+
+          const indices = miembrosActivos.map((m) => {
+            const est = (m.estado || "reservado").toLowerCase();
+            const idx = secuencia.indexOf(est);
+            return idx >= 0 ? idx : 0;
+          });
+          const minIdx = Math.min(...indices);
+          const nuevoEstado = secuencia[minIdx] || "reservado";
+          const estadoActual = (grupo.estado || "reservado").toLowerCase();
+
+          if (nuevoEstado !== estadoActual) {
+            try {
+              await fetchAuth(`${API_BASE}/reservas-grupo/${grupo.ID || grupo.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  responsable_id: grupo.responsable_id || grupo.ResponsableID,
+                  nombre_grupo: grupo.nombre_grupo || grupo.NombreGrupo,
+                  descripcion: grupo.descripcion || grupo.Descripcion || "",
+                  estado: nuevoEstado,
+                }),
+              });
+              return { ...grupo, estado: nuevoEstado };
+            } catch {
+              return grupo;
+            }
+          }
+          return grupo;
+        })
+      );
+
+      setReservasGrupales(gruposSincronizados);
     } catch (err) {
       setReservasGrupales([]);
     } finally {
@@ -687,7 +746,7 @@ export function ReservaGrupal() {
       setLoading(true);
 
       // Re-fetch reservas frescas antes de validar
-      await fetchTodasLasReservas();
+      const reservasFrescas1 = await fetchTodasLasReservas();
 
       const response = await fetchAuth(
         `${API_BASE}/productos/codigo/${codigo}`,
@@ -710,7 +769,7 @@ export function ReservaGrupal() {
       // Validación cruzada por fecha
       const stockActual = producto.stock || 0;
       const disponibilidadFecha = calcularStockDisponiblePorFecha(
-        producto.ID || producto.id, stockActual, fechaEventoGrupo, todasLasReservas, null
+        producto.ID || producto.id, stockActual, fechaEventoGrupo, reservasFrescas1, null
       );
       const stockOriginal = disponibilidadFecha.stockOriginal || stockActual;
 
@@ -804,7 +863,7 @@ export function ReservaGrupal() {
     }
 
     // Re-fetch reservas frescas antes de validar
-    await fetchTodasLasReservas();
+    const reservasFrescas2 = await fetchTodasLasReservas();
 
     const productoId = producto.ID || producto.id;
     const codigoBarras = producto.codigo_barras || `temp-${productoId}`;
@@ -817,7 +876,7 @@ export function ReservaGrupal() {
     // Validación cruzada por fecha (recupera stock original)
     const stockActual = producto.stock || 0;
     const disponibilidadFecha = calcularStockDisponiblePorFecha(
-      productoId, stockActual, fechaEventoGrupo, todasLasReservas, null
+      productoId, stockActual, fechaEventoGrupo, reservasFrescas2, null
     );
     const stockOriginal = disponibilidadFecha.stockOriginal || stockActual;
 
@@ -893,7 +952,7 @@ export function ReservaGrupal() {
       setLoading(true);
 
       // Re-fetch reservas frescas antes de validar
-      await fetchTodasLasReservas();
+      const reservasFrescas3 = await fetchTodasLasReservas();
 
       const response = await fetchAuth(
         `${API_BASE}/productos/codigo/${codigo}`,
@@ -908,7 +967,7 @@ export function ReservaGrupal() {
       const producto = await response.json();
       const productosDelCombo = comboActivo.productos || [];
       const productoEsDelCombo = productosDelCombo.some(
-        (p) => p.nombre?.toLowerCase() === producto.nombre?.toLowerCase(),
+        (p) => norm(p.nombre) === norm(producto.nombre),
       );
 
       if (!productoEsDelCombo) {
@@ -929,7 +988,7 @@ export function ReservaGrupal() {
       // Validar stock con recuperación de stock original
       const stockActual = producto.stock || 0;
       const disponibilidadFecha = fechaEventoGrupo
-        ? calcularStockDisponiblePorFecha(producto.ID || producto.id, stockActual, fechaEventoGrupo, todasLasReservas, null)
+        ? calcularStockDisponiblePorFecha(producto.ID || producto.id, stockActual, fechaEventoGrupo, reservasFrescas3, null)
         : null;
       const stockOriginal = disponibilidadFecha?.stockOriginal || stockActual;
       const yaConsumido = calcularStockConsumidoEnLista(producto.nombre);
@@ -1017,20 +1076,26 @@ export function ReservaGrupal() {
       const todosProductos = await response.json();
       const terminoLower = termino.toLowerCase();
 
-      // Filtrar todos los productos que coinciden con la búsqueda (como la búsqueda principal)
-      const resultados = todosProductos.filter((prod) => {
-        // Ya escaneado?
-        const yaEscaneado = productosComboIngresados.some(
-          (p) => (p.id_producto || 0) === (prod.ID || prod.id)
-        );
-        if (yaEscaneado) return false;
-
-        // Coincide con el término de búsqueda
-        return (
-          (prod.nombre || "").toLowerCase().includes(terminoLower) ||
-          (prod.codigo_barras || "").toLowerCase().includes(terminoLower)
-        );
-      });
+      // Filtrar todos los productos que coinciden con la búsqueda
+      const resultados = todosProductos
+        .filter((prod) => {
+          const yaEscaneado = productosComboIngresados.some(
+            (p) => (p.id_producto || 0) === (prod.ID || prod.id)
+          );
+          if (yaEscaneado) return false;
+          return (
+            (prod.nombre || "").toLowerCase().includes(terminoLower) ||
+            (prod.codigo_barras || "").toLowerCase().includes(terminoLower)
+          );
+        })
+        .sort((a, b) => {
+          // Priorizar nombres que EMPIEZAN con el término
+          const aStarts = (a.nombre || "").toLowerCase().startsWith(terminoLower);
+          const bStarts = (b.nombre || "").toLowerCase().startsWith(terminoLower);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return (a.nombre || "").localeCompare(b.nombre || "");
+        });
 
       setProductosComboEncontrados(resultados);
       setShowProductoComboResults(true);
@@ -1043,7 +1108,7 @@ export function ReservaGrupal() {
     if (!comboActivo) return;
 
     // Re-fetch reservas frescas antes de validar
-    await fetchTodasLasReservas();
+    const reservasFrescas4 = await fetchTodasLasReservas();
 
     // Verificar si ya está escaneado (por nombre)
     if (productosComboIngresados.some((p) => (p.nombre || "").toLowerCase() === (producto.nombre || "").toLowerCase())) {
@@ -1064,7 +1129,7 @@ export function ReservaGrupal() {
     // Validar stock con recuperación de stock original
     const stockActual = producto.stock || 0;
     const disponibilidadFecha = fechaEventoGrupo
-      ? calcularStockDisponiblePorFecha(producto.ID || producto.id, stockActual, fechaEventoGrupo, todasLasReservas, null)
+      ? calcularStockDisponiblePorFecha(producto.ID || producto.id, stockActual, fechaEventoGrupo, reservasFrescas4, null)
       : null;
     const stockOriginal = disponibilidadFecha?.stockOriginal || stockActual;
     const yaConsumido = calcularStockConsumidoEnLista(producto.nombre);
@@ -1123,7 +1188,7 @@ export function ReservaGrupal() {
 
     // Verificar si ya fue escaneado
     const yaEscaneado = productosComboIngresados.some(
-      (p) => p.nombre?.toLowerCase() === productoDelCombo.nombre?.toLowerCase(),
+      (p) => norm(p.nombre) === norm(productoDelCombo.nombre),
     );
 
     if (yaEscaneado) {
@@ -1135,7 +1200,7 @@ export function ReservaGrupal() {
       setLoading(true);
 
       // Re-fetch reservas frescas antes de validar
-      await fetchTodasLasReservas();
+      const reservasFrescas5 = await fetchTodasLasReservas();
 
       // Buscar el producto completo en la base de datos por nombre
       const response = await fetchAuth(`${API_BASE}/productos`);
@@ -1146,7 +1211,7 @@ export function ReservaGrupal() {
       const todosLosProductos = await response.json();
       const productoEncontrado = todosLosProductos.find(
         (p) =>
-          p.nombre?.toLowerCase() === productoDelCombo.nombre?.toLowerCase(),
+          norm(p.nombre) === norm(productoDelCombo.nombre),
       );
 
       if (!productoEncontrado) {
@@ -1157,7 +1222,7 @@ export function ReservaGrupal() {
       // Validar stock con recuperación de stock original
       const stockActual = productoEncontrado.stock || 0;
       const disponibilidadFecha = fechaEventoGrupo
-        ? calcularStockDisponiblePorFecha(productoEncontrado.ID || productoEncontrado.id, stockActual, fechaEventoGrupo, todasLasReservas, null)
+        ? calcularStockDisponiblePorFecha(productoEncontrado.ID || productoEncontrado.id, stockActual, fechaEventoGrupo, reservasFrescas5, null)
         : null;
       const stockOriginal = disponibilidadFecha?.stockOriginal || stockActual;
       const yaConsumido = calcularStockConsumidoEnLista(productoEncontrado.nombre);
@@ -1367,6 +1432,11 @@ export function ReservaGrupal() {
 
     if (productosSeleccionados.length === 0) {
       toast.warning("Debe agregar al menos un producto o combo");
+      return;
+    }
+
+    if (!adelanto || adelanto <= 0) {
+      toast.warning("El adelanto debe ser mayor a 0 para registrar el miembro");
       return;
     }
 
@@ -1997,15 +2067,7 @@ export function ReservaGrupal() {
       }
 
       // Limpiar todo
-      reset();
-      setResponsable(null);
-      setMiembrosGrupo([]);
-      setProductosSeleccionados([]);
-      setPagosAgregados([]);
-      setAdelanto(0);
-      setCostoTotal(0);
-      setGrupoEnEdicion(null);
-      setClienteExistenteResponsable(null);
+      limpiarFormularioGrupal();
 
       // Recargar lista y cambiar a pestaña lista
       fetchReservasGrupales();
@@ -2340,7 +2402,56 @@ export function ReservaGrupal() {
     }
   }
 
-  function cambiarEstadoMiembroEnLista(miembroId, nuevoEstado, grupoId) {
+  // Sincroniza el estado del grupo basándose en el estado mínimo de todos sus miembros activos
+  async function sincronizarEstadoGrupo(grupoId, miembroModificadoId = null, nuevoEstadoMiembro = null) {
+    const grupo = reservasGrupales.find((g) => (g.ID || g.id) === grupoId);
+    if (!grupo) return;
+
+    const secuencia = ["reservado", "listo", "entregado", "devuelto"];
+    const miembrosActivos = (grupo.miembros || []).filter((m) => {
+      const del = m.DeletedAt || m.deleted_at;
+      if (del && del !== "0001-01-01T00:00:00Z") return false;
+      const est = (m.estado || "").toLowerCase();
+      return est !== "anulado" && est !== "cancelado";
+    });
+
+    if (miembrosActivos.length === 0) return;
+
+    // El estado del grupo = el mínimo de todos los miembros
+    // Si se acaba de modificar un miembro, usar su nuevo estado en vez del estado del state
+    const indices = miembrosActivos.map((m) => {
+      const mId = m.ID || m.id;
+      let est;
+      if (miembroModificadoId && mId === miembroModificadoId && nuevoEstadoMiembro) {
+        est = nuevoEstadoMiembro.toLowerCase();
+      } else {
+        est = (m.estado || "reservado").toLowerCase();
+      }
+      return secuencia.indexOf(est);
+    });
+    const minIdx = Math.min(...indices);
+    const nuevoEstadoGrupo = secuencia[minIdx] || "reservado";
+    const estadoActualGrupo = (grupo.estado || "reservado").toLowerCase();
+
+    if (nuevoEstadoGrupo !== estadoActualGrupo) {
+      try {
+        await fetchAuth(`${API_BASE}/reservas-grupo/${grupoId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            responsable_id: grupo.responsable_id || grupo.ResponsableID,
+            nombre_grupo: grupo.nombre_grupo || grupo.NombreGrupo,
+            descripcion: grupo.descripcion || grupo.Descripcion || "",
+            estado: nuevoEstadoGrupo,
+          }),
+        });
+      } catch {
+        // silencioso - se actualizará en el próximo fetch
+      }
+    }
+  }
+
+  async function cambiarEstadoMiembroEnLista(miembroId, nuevoEstado, grupoId) {
     // Buscar el miembro en el grupo
     const grupo = reservasGrupales.find((g) => (g.ID || g.id) === grupoId);
     if (!grupo) return;
@@ -2351,8 +2462,39 @@ export function ReservaGrupal() {
     const nombreMiembro = `${miembro.cliente?.nombre || miembro.cliente?.Nombre || ""} ${miembro.cliente?.apellidos || miembro.cliente?.Apellidos || ""}`.trim();
     const estadoActual = (miembro.estado || "reservado").toUpperCase();
 
-    // Interceptar cambio a "entregado": verificar pago completo
+    // No permitir retroceder estados
+    const secuencia = ["reservado", "listo", "entregado", "devuelto"];
+    const idxActual = secuencia.indexOf((miembro.estado || "reservado").toLowerCase());
+    const idxNuevo = secuencia.indexOf(nuevoEstado);
+    if (idxNuevo <= idxActual) {
+      toast.warning("No se puede retroceder a un estado anterior");
+      return;
+    }
+
+    // Interceptar cambio a "entregado": verificar reservas del día siguiente + pago
     if (nuevoEstado === "entregado") {
+      const reservasFrescas = await fetchTodasLasReservas();
+      const detalles = miembro.detalles || miembro.Detalles || [];
+      const fechaMiembro = miembro.fecha_evento || miembro.FechaEvento || grupo.fecha_evento || grupo.FechaEvento || "";
+      const alertasDiaSiguiente = [];
+
+      for (const det of detalles) {
+        const idProd = det.id_producto || det.IdProducto || det.producto_id;
+        const nombreProd = det.producto?.nombre || det.nombre || det.descripcion || "Producto";
+        const stockProd = det.producto?.stock ?? 0;
+        if (!idProd || !fechaMiembro) continue;
+
+        const disp = calcularStockDisponiblePorFecha(idProd, stockProd, fechaMiembro, reservasFrescas, miembroId);
+        if (disp.reservasDiaSiguiente && disp.reservasDiaSiguiente.length > 0) {
+          alertasDiaSiguiente.push(buildMensajeDiaSiguiente(nombreProd, disp.reservasDiaSiguiente));
+        }
+      }
+
+      if (alertasDiaSiguiente.length > 0) {
+        mostrarAlertaStock(alertasDiaSiguiente.join("\n\n"), "warning");
+      }
+
+      // Verificar pago completo
       const total = parseFloat(miembro.total || 0);
       const adelantoActual = parseFloat(miembro.adelanto || 0);
       const saldo = total - adelantoActual;
@@ -2396,6 +2538,7 @@ export function ReservaGrupal() {
 
           if (!response.ok) throw new Error("Error");
           toast.success(`Estado del miembro cambiado a: ${nuevoEstado.toUpperCase()}`);
+          await sincronizarEstadoGrupo(grupoId, miembroId, nuevoEstado);
           fetchReservasGrupales();
         } catch (error) {
           toast.error("Error al cambiar estado del miembro");
@@ -2444,6 +2587,7 @@ export function ReservaGrupal() {
       if (!resUpdate.ok) throw new Error("Error al actualizar miembro");
 
       toast.success("Pago registrado y estado cambiado a ENTREGADO");
+      await sincronizarEstadoGrupo(pagoCompletarData.grupoId, reservaId, "entregado");
       setShowPagoCompletarModal(false);
       setPagoCompletarData(null);
       fetchReservasGrupales();
@@ -3236,6 +3380,12 @@ export function ReservaGrupal() {
   const busquedaTextoActiva = !!(filtroBusqueda || filtroDniResponsable);
 
   const gruposFiltrados = reservasGrupales.filter((grupo) => {
+    // Excluir eliminados y anulados
+    const deletedAt = grupo.DeletedAt || grupo.deleted_at;
+    if (deletedAt && deletedAt !== "0001-01-01T00:00:00Z") return false;
+    const estadoGrupo = (grupo.estado || "").toLowerCase();
+    if (estadoGrupo === "anulado" || estadoGrupo === "cancelado") return false;
+
     // Filtro por estado del grupo (siempre activo)
     if (
       filtroEstado !== "todos" &&
@@ -3309,46 +3459,41 @@ export function ReservaGrupal() {
   return (
     <div className="p-2 min-h-screen bg-blue-50">
       {/* HEADER CON PESTAÑAS */}
-      <div className="bg-white rounded-lg shadow-md p-3 mb-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+      <div className="bg-white rounded-t-lg shadow-md px-3 pt-3 pb-0 border-b-2 border-blue-600">
+        <div className="flex justify-between items-end gap-2">
+          {/* Título */}
+          <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-gray-800 pb-2">
             <Users size={24} /> RESERVAS GRUPALES
           </h1>
-          <div className="flex gap-2 flex-wrap">
+          {/* Pestañas a la derecha, tocando el borde inferior */}
+          <div className="flex gap-1">
             <button
               onClick={() => {
                 if (pestanaActiva !== "nueva") {
-                  setGrupoEnEdicion(null);
-                  reset();
-                  setResponsable(null);
-                  setMiembrosGrupo([]);
-                  setProductosSeleccionados([]);
-                  setPagosAgregados([]);
-                  setAdelanto(0);
-                  setCostoTotal(0);
+                  limpiarFormularioGrupal();
                 }
                 setPestanaActiva("nueva");
               }}
-              className={`flex items-center gap-1 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-t-lg translate-y-[2px] transition-all ${
                 pestanaActiva === "nueva"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  ? "bg-blue-600 text-white border-t-2 border-l-2 border-r-2 border-blue-600"
+                  : "bg-gray-100 text-gray-600 border-t-2 border-l-2 border-r-2 border-gray-200 hover:bg-gray-200 hover:text-gray-800"
               }`}
             >
-              <Plus size={16} /> NUEVA RESERVA
+              <Plus size={15} /> NUEVA RESERVA
             </button>
             <button
               onClick={() => {
                 setPestanaActiva("lista");
                 fetchReservasGrupales();
               }}
-              className={`flex items-center gap-1 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold ${
+              className={`flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-bold rounded-t-lg translate-y-[2px] transition-all ${
                 pestanaActiva === "lista"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  ? "bg-blue-600 text-white border-t-2 border-l-2 border-r-2 border-blue-600"
+                  : "bg-gray-100 text-gray-600 border-t-2 border-l-2 border-r-2 border-gray-200 hover:bg-gray-200 hover:text-gray-800"
               }`}
             >
-              <List size={16} /> LISTA DE RESERVAS GRUPALES
+              <List size={15} /> LISTA DE RESERVAS GRUPALES
             </button>
           </div>
         </div>
@@ -3356,7 +3501,7 @@ export function ReservaGrupal() {
 
       {/* ==================== PESTAÑA NUEVA ==================== */}
       {pestanaActiva === "nueva" && (
-        <div className="space-y-3">
+        <div className="space-y-3 pt-3">
           {/* DATOS DEL GRUPO */}
           <div
             className={`rounded-lg p-4 ${grupoEnEdicion ? "bg-yellow-100 border-2 border-yellow-400" : "bg-blue-200"}`}
@@ -3926,47 +4071,28 @@ export function ReservaGrupal() {
                     </div>
                   </div>
 
-                  {/* Botón para agregar/cambiar métodos de pago */}
-                  <button
-                    type="button"
-                    onClick={() => setShowPagosModal(true)}
-                    disabled={adelanto === 0}
-                    className="w-full px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400 text-xs"
-                  >
-                    💳 Agregar Método de Pago
-                  </button>
-
-                  {/* Lista de pagos agregados */}
+                  {/* Pagos registrados */}
                   {pagosAgregados.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-xs font-bold">Pagos registrados:</p>
+                    <div className="mt-1 space-y-1">
+                      <p className="text-[10px] font-bold text-gray-500">Métodos de pago registrados:</p>
                       {pagosAgregados.map((pago) => (
-                        <div
-                          key={pago.id}
-                          className="flex justify-between items-center text-xs bg-white p-1 rounded"
-                        >
-                          <span>
-                            {pago.nombre}: S/ {pago.monto.toFixed(2)}
-                          </span>
-                          <button
-                            onClick={() => removerMetodoPago(pago.id)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            ✕
-                          </button>
+                        <div key={pago.id} className="flex justify-between items-center text-xs bg-white p-1.5 rounded border">
+                          <span>{pago.nombre}: S/ {pago.monto.toFixed(2)}</span>
+                          <button type="button" onClick={() => removerMetodoPago(pago.id)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
                         </div>
                       ))}
-                      <div className="flex justify-between font-bold text-xs pt-1 border-t">
-                        <span>Total pagos:</span>
-                        <span>
-                          S/{" "}
-                          {pagosAgregados
-                            .reduce((sum, p) => sum + p.monto, 0)
-                            .toFixed(2)}
-                        </span>
-                      </div>
                     </div>
                   )}
+
+                  {/* Botón agregar/cambiar método de pago */}
+                  <button
+                    type="button"
+                    onClick={() => { setPagosAgregados([]); setShowPagosModal(true); }}
+                    disabled={adelanto === 0}
+                    className="w-full mt-1 px-2 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400 text-xs font-bold flex items-center justify-center gap-1.5"
+                  >
+                    💳 {pagosAgregados.length > 0 ? "Cambiar Método de Pago" : "Agregar Método de Pago"}
+                  </button>
 
                   <div className="flex justify-between items-center text-sm font-bold text-red-600">
                     <span>DEBE:</span>
@@ -4139,31 +4265,34 @@ export function ReservaGrupal() {
                           {item.tipo === "combo" && expandedCombo === item.id && item.productos_escaneados && (
                             <tr>
                               <td colSpan="7" className="p-0">
-                                <div className="bg-blue-50 p-2 border-t border-blue-200">
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="bg-blue-100">
-                                        <th className="p-1 text-left">Producto</th>
-                                        <th className="p-1 text-center">Talla</th>
-                                        <th className="p-1 text-center">Modelo</th>
-                                        <th className="p-1 text-center">Color</th>
-                                        <th className="p-1 text-center">Stock</th>
-                                        <th className="p-1 text-center">Código</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {item.productos_escaneados.map((prod, idx) => (
-                                        <tr key={idx} className="border-t border-blue-100">
-                                          <td className="p-1">{prod.nombre}</td>
-                                          <td className="p-1 text-center">{prod.talla || "-"}</td>
-                                          <td className="p-1 text-center">{prod.modelo || "-"}</td>
-                                          <td className="p-1 text-center">{prod.color || "-"}</td>
-                                          <td className="p-1 text-center">{prod.stock || 0}</td>
-                                          <td className="p-1 text-center">{prod.codigo_barras || "-"}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                <div className="bg-blue-50 p-2 border-t border-blue-200 space-y-1">
+                                  {item.productos_escaneados.map((prod, idx) => {
+                                    const imgUrl = buildImageUrl(prod.imagen || prod.Imagen);
+                                    return (
+                                      <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-white rounded border border-blue-100 text-xs">
+                                        {imgUrl ? (
+                                          <img
+                                            src={imgUrl}
+                                            alt={prod.nombre}
+                                            className="w-8 h-8 object-cover rounded border flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-blue-400"
+                                            onClick={() => setFotoAmpliada(imgUrl)}
+                                            title="Clic para ampliar"
+                                            onError={(e) => { e.target.style.display = "none"; }}
+                                          />
+                                        ) : (
+                                          <div className="w-8 h-8 bg-gray-100 rounded border flex items-center justify-center flex-shrink-0">
+                                            <Package className="w-3.5 h-3.5 text-gray-400" />
+                                          </div>
+                                        )}
+                                        <span className="font-medium flex-1 text-gray-800">{prod.nombre}</span>
+                                        {(prod.talla || prod.modelo || prod.color) && (
+                                          <span className="text-[10px] text-gray-500">
+                                            {[prod.talla && `T:${prod.talla}`, prod.modelo && `M:${prod.modelo}`, prod.color && `C:${prod.color}`].filter(Boolean).join(" | ")}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </td>
                             </tr>
@@ -4403,15 +4532,7 @@ export function ReservaGrupal() {
                     onConfirm: () => {
                       setShowConfirmModal(false);
                       setConfirmModalData(null);
-                      setGrupoEnEdicion(null);
-                      reset();
-                      setResponsable(null);
-                      setMiembrosGrupo([]);
-                      setProductosSeleccionados([]);
-                      setPagosAgregados([]);
-                      setAdelanto(0);
-                      setCostoTotal(0);
-                      setClienteExistenteResponsable(null);
+                      limpiarFormularioGrupal();
                     },
                   });
                   setShowConfirmModal(true);
@@ -4442,7 +4563,7 @@ export function ReservaGrupal() {
 
       {/* ==================== PESTAÑA LISTA ==================== */}
       {pestanaActiva === "lista" && (
-        <div className="bg-blue-100 rounded-lg shadow p-3">
+        <div className="bg-blue-100 rounded-b-lg rounded-tr-lg shadow p-3 mt-0">
           {/* Filtros */}
           <div className="bg-white rounded-lg shadow-md p-4 mb-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-12 gap-3 mb-3">
@@ -4611,7 +4732,7 @@ export function ReservaGrupal() {
               >
                 Todos los estados
               </button>
-              {["reservado", "listo", "entregado", "devuelto", "anulado"].map(
+              {["reservado", "listo", "entregado", "devuelto"].map(
                 (estado) => (
                   <button
                     key={estado}
@@ -4767,7 +4888,7 @@ export function ReservaGrupal() {
 
                     {/* Miembros expandidos */}
                     {isExpanded && (grupo.miembros || []).length > 0 && (
-                      <div className="bg-white p-1 overflow-x-auto">
+                      <div className="bg-white p-1 overflow-x-auto overflow-y-visible">
                         <table className="w-full text-[11px] min-w-[700px]">
                           <thead className="bg-blue-500 text-white">
                             <tr>
@@ -4784,7 +4905,12 @@ export function ReservaGrupal() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(grupo.miembros || []).map((miembro, idx) => {
+                            {(grupo.miembros || []).filter((m) => {
+                              const del = m.DeletedAt || m.deleted_at;
+                              if (del && del !== "0001-01-01T00:00:00Z") return false;
+                              const est = (m.estado || "").toLowerCase();
+                              return est !== "anulado" && est !== "cancelado";
+                            }).map((miembro, idx) => {
                               const miembroId = miembro.ID || miembro.id;
                               const detalles = miembro.detalles || [];
                               const isMiembroExpanded =
@@ -4816,36 +4942,76 @@ export function ReservaGrupal() {
                                       {formatFechaDDMMYYYY(miembro.fecha_evento)}
                                     </td>
                                     <td className="px-1.5 py-1">
-                                      <select
-                                        value={
-                                          miembro.estado?.toLowerCase() ||
-                                          "reservado"
-                                        }
-                                        onChange={(e) =>
-                                          cambiarEstadoMiembroEnLista(
-                                            miembroId,
-                                            e.target.value,
-                                            grupoId,
-                                          )
-                                        }
-                                        className={`text-[10px] px-1.5 py-0.5 rounded font-medium cursor-pointer ${
-                                          miembro.estado?.toLowerCase() ===
-                                          "reservado"
-                                            ? "bg-yellow-100"
-                                            : miembro.estado?.toLowerCase() ===
-                                                "listo"
-                                              ? "bg-blue-100"
-                                              : miembro.estado?.toLowerCase() ===
-                                                  "entregado"
-                                                ? "bg-green-100"
-                                                : "bg-orange-100"
-                                        }`}
-                                      >
-                                        <option value="reservado">RESERVADO</option>
-                                        <option value="listo">LISTO</option>
-                                        <option value="entregado">ENTREGADO</option>
-                                        <option value="devuelto">DEVUELTO</option>
-                                      </select>
+                                      {(() => {
+                                        const secuencia = ["reservado", "listo", "entregado", "devuelto"];
+                                        const colores = {
+                                          reservado: { bg: "bg-yellow-400", ring: "ring-yellow-300", text: "text-yellow-700", bgLight: "bg-yellow-50" },
+                                          listo: { bg: "bg-blue-500", ring: "ring-blue-300", text: "text-blue-700", bgLight: "bg-blue-50" },
+                                          entregado: { bg: "bg-green-600", ring: "ring-green-400", text: "text-green-700", bgLight: "bg-green-50" },
+                                          devuelto: { bg: "bg-orange-500", ring: "ring-orange-300", text: "text-orange-700", bgLight: "bg-orange-50" },
+                                        };
+                                        const estadoActual = (miembro.estado || "reservado").toLowerCase();
+                                        const idxActual = secuencia.indexOf(estadoActual);
+                                        const dropdownKey = `${grupoId}-${miembroId}`;
+                                        const isDropdownOpen = estadoDropdownMiembroId === dropdownKey;
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            {/* Stepper visual */}
+                                            <div className="flex items-center gap-0">
+                                              {secuencia.map((est, i) => {
+                                                const isCompleted = i < idxActual;
+                                                const isCurrent = i === idxActual;
+                                                return (
+                                                  <React.Fragment key={est}>
+                                                    {i > 0 && (
+                                                      <div className={`w-2 h-[2px] ${i <= idxActual ? "bg-green-400" : "bg-gray-300"}`} />
+                                                    )}
+                                                    <div
+                                                      className={`w-[16px] h-[16px] rounded-full text-[7px] font-bold flex items-center justify-center flex-shrink-0 ${
+                                                        isCompleted
+                                                          ? "bg-green-500 text-white"
+                                                          : isCurrent
+                                                            ? `${colores[est].bg} text-white ring-1 ${colores[est].ring}`
+                                                            : "bg-gray-200 text-gray-400"
+                                                      }`}
+                                                      title={est.charAt(0).toUpperCase() + est.slice(1)}
+                                                    >
+                                                      {isCompleted ? "✓" : est[0].toUpperCase()}
+                                                    </div>
+                                                  </React.Fragment>
+                                                );
+                                              })}
+                                            </div>
+                                            {/* Botón dropdown */}
+                                            <div className="relative">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  if (isDropdownOpen) {
+                                                    setEstadoDropdownMiembroId(null);
+                                                  } else {
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const spaceBelow = window.innerHeight - rect.bottom;
+                                                    const openUp = spaceBelow < 180;
+                                                    setEstadoDropdownPos({
+                                                      top: openUp ? undefined : rect.bottom + 4,
+                                                      bottom: openUp ? (window.innerHeight - rect.top + 4) : undefined,
+                                                      left: Math.min(rect.left, window.innerWidth - 180),
+                                                      miembroId,
+                                                      grupoId,
+                                                    });
+                                                    setEstadoDropdownMiembroId(dropdownKey);
+                                                  }
+                                                }}
+                                                className="p-0.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                title="Cambiar estado"
+                                              >
+                                                <ChevronDown className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                     <td className="px-1.5 py-1 text-right font-medium">
                                       S/ {(miembro.total || 0).toFixed(2)}
@@ -5437,96 +5603,127 @@ export function ReservaGrupal() {
       )}
 
       {/* Modal Pagos */}
-      {showPagosModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-3 sm:p-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-bold">Agregar Método de Pago</h3>
-              <button
-                onClick={() => setShowPagosModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {showPagosModal && (() => {
+        const totalPagosModal = pagosAgregados.reduce((sum, p) => sum + p.monto, 0);
+        const faltaRegistrar = Math.max(0, adelanto - totalPagosModal);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-4">
+            <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Header azul */}
+              <div className="bg-blue-400 px-4 py-2.5 flex justify-between items-center">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  💳 Registrar Método de Pago
+                </h3>
+                {faltaRegistrar <= 0 && (
+                  <button onClick={() => setShowPagosModal(false)} className="text-white/80 hover:text-white">
+                    <X size={18} />
+                  </button>
+                )}
+              </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const metodoPago = metodosPago.find(
-                  (m) => (m.ID || m.id) == formData.get("id_pago"),
-                );
-                if (metodoPago) {
-                  agregarMetodoPago(
-                    metodoPago,
-                    formData.get("monto"),
-                    formData.get("descripcion"),
-                  );
-                  e.target.reset();
-                }
-              }}
-            >
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold">
-                    Método de Pago *
-                  </label>
-                  <select
-                    name="id_pago"
-                    required
-                    className="w-full border rounded px-3 py-2 text-sm"
+              <div className="p-4 overflow-y-auto flex-1 space-y-3">
+                {/* Resumen */}
+                <div className="bg-gray-50 rounded p-2.5 space-y-1 text-xs border">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Adelanto:</span>
+                    <span className="font-bold text-blue-700">S/ {adelanto.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Ya registrado:</span>
+                    <span className="font-bold text-green-600">S/ {totalPagosModal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1 mt-1">
+                    <span className="font-bold text-gray-800">Falta registrar:</span>
+                    <span className={`font-bold ${faltaRegistrar > 0 ? "text-red-600" : "text-green-600"}`}>S/ {faltaRegistrar.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Pagos registrados */}
+                {pagosAgregados.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-500 mb-1">Pagos registrados:</p>
+                    <div className="space-y-1">
+                      {pagosAgregados.map((pago) => (
+                        <div key={pago.id} className="flex justify-between items-center text-xs bg-sky-50 p-1.5 rounded">
+                          <span>{pago.nombre}{pago.descripcion ? ` - ${pago.descripcion}` : ""}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-green-700">S/ {pago.monto.toFixed(2)}</span>
+                            <button type="button" onClick={() => removerMetodoPago(pago.id)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-between font-bold text-xs pt-1 border-t">
+                        <span>Total pagos:</span>
+                        <span>S/ {totalPagosModal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulario (solo si falta registrar) */}
+                {faltaRegistrar > 0 && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.target);
+                      const metodoPago = metodosPago.find((m) => (m.ID || m.id) == formData.get("id_pago"));
+                      if (metodoPago) {
+                        agregarMetodoPago(metodoPago, formData.get("monto"), formData.get("descripcion"));
+                        e.target.reset();
+                      }
+                    }}
                   >
-                    <option value="">Seleccione...</option>
-                    {metodosPago.map((metodo) => (
-                      <option
-                        key={metodo.ID || metodo.id}
-                        value={metodo.ID || metodo.id}
-                      >
-                        {metodo.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold">Monto <span className="text-orange-500">*</span></label>
-                  <input
-                    type="number"
-                    name="monto"
-                    step="0.01"
-                    required
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold">Descripción</label>
-                  <input
-                    type="text"
-                    name="descripcion"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <label className="absolute -top-2 left-2 bg-white px-1 text-[10px] font-medium text-gray-600 z-10">Método de Pago</label>
+                        <select name="id_pago" required className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs">
+                          <option value="">Seleccione método...</option>
+                          {metodosPago.map((metodo) => (
+                            <option key={metodo.ID || metodo.id} value={metodo.ID || metodo.id}>{metodo.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="relative">
+                        <label className="absolute -top-2 left-2 bg-white px-1 text-[10px] font-medium text-gray-600 z-10">Monto</label>
+                        <div className="flex gap-1">
+                          <input type="number" name="monto" step="0.01" required placeholder="0.00" className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const input = e.target.closest("div").querySelector("input[name='monto']");
+                              if (input) input.value = faltaRegistrar.toFixed(2);
+                            }}
+                            className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs font-bold whitespace-nowrap border border-blue-300"
+                          >
+                            Todo
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <label className="absolute -top-2 left-2 bg-white px-1 text-[10px] font-medium text-gray-600 z-10">Descripción (opcional)</label>
+                        <input type="text" name="descripcion" placeholder="N° operación, referencia, etc." className="w-full border border-gray-300 rounded px-2.5 py-1.5 text-xs" />
+                      </div>
+                    </div>
+                    <button type="submit" className="w-full mt-3 px-3 py-2 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700">
+                      + Agregar Pago
+                    </button>
+                  </form>
+                )}
 
-              <div className="flex justify-end gap-2 mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowPagosModal(false)}
-                  className="px-4 py-2 bg-gray-500 text-white rounded text-sm"
-                >
-                  Cerrar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-bold"
-                >
-                  Agregar
-                </button>
+                {/* Completado */}
+                {faltaRegistrar <= 0 && pagosAgregados.length > 0 && (
+                  <div className="text-center space-y-2">
+                    <p className="text-xs text-green-600 font-bold">✓ Monto completado</p>
+                    <button type="button" onClick={() => setShowPagosModal(false)} className="w-full px-3 py-2 bg-green-600 text-white rounded text-xs font-bold hover:bg-green-700">
+                      Cerrar
+                    </button>
+                  </div>
+                )}
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal Combos */}
       {showCombosModal && (
@@ -5637,11 +5834,11 @@ export function ReservaGrupal() {
                 {(comboActivo.productos || []).map((prod, idx) => {
                   const yaEscaneado = productosComboIngresados.some(
                     (p) =>
-                      p.nombre?.toLowerCase() === prod.nombre?.toLowerCase(),
+                      norm(p.nombre) === norm(prod.nombre),
                   );
                   const escaneado = yaEscaneado
                     ? productosComboIngresados.find(
-                        (p) => p.nombre?.toLowerCase() === prod.nombre?.toLowerCase()
+                        (p) => norm(p.nombre) === norm(prod.nombre)
                       )
                     : null;
                   const imgUrl = escaneado
@@ -6276,6 +6473,67 @@ export function ReservaGrupal() {
           </div>
         </div>
       )}
+
+      {/* ===== DROPDOWN ESTADO MIEMBRO FIXED ===== */}
+      {estadoDropdownMiembroId && (() => {
+        const [gId, mId] = estadoDropdownMiembroId.split("-").map(Number);
+        const grupo = reservasGrupales.find((g) => (g.ID || g.id) === gId);
+        const miembro = grupo?.miembros?.find((m) => (m.ID || m.id) === mId);
+        if (!miembro) return null;
+        const secuencia = ["reservado", "listo", "entregado", "devuelto"];
+        const colores = {
+          reservado: { bg: "bg-yellow-400", text: "text-yellow-700", bgLight: "bg-yellow-50" },
+          listo: { bg: "bg-blue-500", text: "text-blue-700", bgLight: "bg-blue-50" },
+          entregado: { bg: "bg-green-600", text: "text-green-700", bgLight: "bg-green-50" },
+          devuelto: { bg: "bg-orange-500", text: "text-orange-700", bgLight: "bg-orange-50" },
+        };
+        const estadoActual = (miembro.estado || "reservado").toLowerCase();
+        const idxActual = secuencia.indexOf(estadoActual);
+        return (
+          <>
+            <div className="fixed inset-0 z-[70]" onClick={() => setEstadoDropdownMiembroId(null)} />
+            <div
+              className="fixed z-[80] bg-white rounded-lg shadow-xl border border-gray-200 py-1 w-44"
+              style={{
+                top: estadoDropdownPos.top != null ? estadoDropdownPos.top : undefined,
+                bottom: estadoDropdownPos.bottom != null ? estadoDropdownPos.bottom : undefined,
+                left: estadoDropdownPos.left,
+              }}
+            >
+              {secuencia.map((est, i) => {
+                const isCompleted = i < idxActual;
+                const isCurrent = i === idxActual;
+                const isFuture = i > idxActual;
+                const color = colores[est];
+                return (
+                  <button
+                    key={est}
+                    type="button"
+                    disabled={!isFuture}
+                    onClick={() => {
+                      setEstadoDropdownMiembroId(null);
+                      if (isFuture) cambiarEstadoMiembroEnLista(mId, est, gId);
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-[11px] flex items-center gap-2 ${
+                      isFuture ? "hover:bg-blue-50 cursor-pointer" : "opacity-60 cursor-default"
+                    } ${isCurrent ? color.bgLight : ""}`}
+                  >
+                    <span className={`w-4 h-4 rounded-full text-[7px] font-bold flex items-center justify-center flex-shrink-0 ${
+                      isCompleted ? "bg-green-500 text-white" : isCurrent ? `${color.bg} text-white` : "bg-gray-200 text-gray-400"
+                    }`}>
+                      {isCompleted ? "✓" : (i + 1)}
+                    </span>
+                    <span className={`font-medium ${isCurrent ? color.text : isFuture ? "text-gray-700" : "text-gray-400"}`}>
+                      {est.charAt(0).toUpperCase() + est.slice(1)}
+                    </span>
+                    {isCurrent && <span className="ml-auto text-[9px] text-gray-400">actual</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
 
       {/* MODAL DE CONFIRMACIÓN / ALERTA */}
       {showConfirmModal && confirmModalData && (

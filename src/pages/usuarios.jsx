@@ -7,9 +7,6 @@ import {
   Pencil,
   Search,
   Users,
-  Mail,
-  Phone,
-  Shield,
   Bell,
   CheckCircle,
   XCircle,
@@ -41,6 +38,15 @@ export default function Usuarios() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Modal de confirmación genérico
+  const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", icon: "warning", onConfirm: null });
+
+  const showConfirm = (title, message, onConfirm, icon = "warning") => {
+    setConfirmModal({ show: true, title, message, icon, onConfirm });
+  };
+
+  const cerrarConfirm = () => setConfirmModal({ show: false, title: "", message: "", icon: "warning", onConfirm: null });
+
   // Modal de aprobación
   const [showModalAprobar, setShowModalAprobar] = useState(false);
   const [empleadoAprobar, setEmpleadoAprobar] = useState(null);
@@ -61,7 +67,6 @@ export default function Usuarios() {
 
   const perfil = watch("perfil");
   const passwordNueva = watch("password");
-  const confirmPassword = watch("confirmPassword");
 
   useEffect(() => {
     fetchEmpleados();
@@ -69,8 +74,8 @@ export default function Usuarios() {
     fetchSucursales();
   }, []);
 
-  const fetchEmpleados = async () => {
-    setLoading(true);
+  const fetchEmpleados = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetchAuth(`${API_BASE_URL}/empleados`);
       if (res.ok) {
@@ -80,7 +85,7 @@ export default function Usuarios() {
     } catch (err) {
       toast.error("Error cargando usuarios");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -219,7 +224,7 @@ export default function Usuarios() {
       if (response.ok) {
         toast.success(editId ? "Usuario actualizado" : "Usuario creado");
         resetForm();
-        fetchEmpleados();
+        fetchEmpleados(true);
         fetchPendientes();
       } else {
         const result = await response.json();
@@ -239,13 +244,16 @@ export default function Usuarios() {
     setValue("dni", emp.DNI || "");
     setValue("correo", emp.Correo || "");
     setValue("telefono", emp.Telefono || "");
-    setValue("perfil", emp.Perfil || "vendedor");
+    // mapear "admin" (creado por sistema) a "administrador"
+    const perfilMapeado = (emp.Perfil === "admin") ? "administrador" : (emp.Perfil || "vendedor");
+    setValue("perfil", perfilMapeado);
     setValue("salario", emp.Salario || 0);
-    setValue("sucursal_id", emp.SucursalID || "");
+    setValue("sucursal_id", emp.SucursalID || emp.sucursal_id || "");
     setValue("estado", emp.Estado || "activo");
     setValue("password", "");
-    if (emp.Imagen) {
-      setPreviewImage(buildImageUrl(emp.Imagen));
+    const imgUrl = emp.Imagen || emp.imagen;
+    if (imgUrl) {
+      setPreviewImage(buildImageUrl(imgUrl));
     }
     setSelectedFile(null);
   };
@@ -275,27 +283,29 @@ export default function Usuarios() {
     const nuevoEstado = emp.Estado === "activo" ? "inactivo" : "activo";
     const accion = nuevoEstado === "activo" ? "activar" : "inactivar";
 
-    if (!confirm(`¿Desea ${accion} a ${emp.Nombre} ${emp.Apellidos}?`)) return;
-
-    try {
-      const endpoint = nuevoEstado === "activo"
-        ? `${API_BASE_URL}/empleados/${emp.ID}/activar`
-        : `${API_BASE_URL}/empleados/${emp.ID}/inactivar`;
-
-      const res = await fetchAuth(endpoint, {
-        method: "PUT",
-      });
-
-      if (res.ok) {
-        toast.success(`Usuario ${accion === "activar" ? "activado" : "inactivado"}`);
-        fetchEmpleados();
-      } else {
-        const result = await res.json();
-        toast.error(result.error || `Error al ${accion}`);
-      }
-    } catch (err) {
-      toast.error(`Error al ${accion} usuario`);
-    }
+    showConfirm(
+      `${accion.charAt(0).toUpperCase() + accion.slice(1)} usuario`,
+      `¿Desea ${accion} a ${emp.Nombre} ${emp.Apellidos}?`,
+      async () => {
+        cerrarConfirm();
+        try {
+          const endpoint = nuevoEstado === "activo"
+            ? `${API_BASE_URL}/empleados/${emp.ID}/activar`
+            : `${API_BASE_URL}/empleados/${emp.ID}/inactivar`;
+          const res = await fetchAuth(endpoint, { method: "PUT" });
+          if (res.ok) {
+            toast.success(`Usuario ${accion === "activar" ? "activado" : "inactivado"}`);
+            fetchEmpleados(true);
+          } else {
+            const result = await res.json();
+            toast.error(result.error || `Error al ${accion}`);
+          }
+        } catch {
+          toast.error(`Error al ${accion} usuario`);
+        }
+      },
+      nuevoEstado === "activo" ? "success" : "warning"
+    );
   };
 
   const handleAprobarClick = (empleado) => {
@@ -311,7 +321,9 @@ export default function Usuarios() {
   const handleAprobar = async () => {
     if (!empleadoAprobar) return;
 
-    if (!formAprobacion.salario || formAprobacion.salario <= 0) {
+    const salarioNum = parseFloat(formAprobacion.salario);
+
+    if (!formAprobacion.salario || salarioNum <= 0) {
       toast.error("El salario debe ser mayor a 0");
       return;
     }
@@ -322,17 +334,41 @@ export default function Usuarios() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           perfil: formAprobacion.perfil,
-          salario: parseFloat(formAprobacion.salario),
-          sucursal_id: parseInt(formAprobacion.sucursal_id),
+          salario: salarioNum,
+          sucursal_id: empleadoAprobar.SucursalID || 1,
         }),
       });
 
       if (res.ok) {
         toast.success("Usuario aprobado exitosamente");
         setShowModalAprobar(false);
+        const idAprobado = empleadoAprobar.ID;
+        const perfilAprobado = formAprobacion.perfil;
         setEmpleadoAprobar(null);
-        fetchPendientes();
-        fetchEmpleados();
+        setPendientes(prev => prev.filter(p => p.ID !== idAprobado));
+        // Actualización optimista: actualiza el salario en la lista inmediatamente
+        setEmpleados(prev => {
+          const existe = prev.some(e => e.ID === idAprobado);
+          if (existe) {
+            return prev.map(e =>
+              e.ID === idAprobado
+                ? { ...e, Salario: salarioNum, Perfil: perfilAprobado, Estado: "activo" }
+                : e
+            );
+          }
+          // Si aún no está en la lista, agregar el empleado aprobado
+          return [
+            ...prev,
+            {
+              ...empleadoAprobar,
+              Salario: salarioNum,
+              Perfil: perfilAprobado,
+              Estado: "activo",
+            },
+          ];
+        });
+        // Refrescar desde el servidor sin mostrar spinner
+        fetchEmpleados(true);
       } else {
         const result = await res.json();
         toast.error(result.error || "Error al aprobar");
@@ -342,44 +378,50 @@ export default function Usuarios() {
     }
   };
 
-  const handleRechazar = async (empleado) => {
-    if (!confirm(`¿Rechazar y eliminar a ${empleado.Nombre} ${empleado.Apellidos}?`)) return;
-
-    try {
-      const res = await fetchAuth(`${API_BASE_URL}/empleados/${empleado.ID}/rechazar`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        toast.success("Usuario rechazado");
-        fetchPendientes();
-      } else {
-        const result = await res.json();
-        toast.error(result.error || "Error al rechazar");
-      }
-    } catch (err) {
-      toast.error("Error rechazando usuario");
-    }
+  const handleRechazar = (empleado) => {
+    showConfirm(
+      "Rechazar usuario",
+      `¿Rechazar y eliminar a ${empleado.Nombre} ${empleado.Apellidos}? Esta acción no se puede deshacer.`,
+      async () => {
+        cerrarConfirm();
+        try {
+          const res = await fetchAuth(`${API_BASE_URL}/empleados/${empleado.ID}/rechazar`, { method: "DELETE" });
+          if (res.ok) {
+            toast.success("Usuario rechazado");
+            setPendientes(prev => prev.filter(p => p.ID !== empleado.ID));
+          } else {
+            const result = await res.json();
+            toast.error(result.error || "Error al rechazar");
+          }
+        } catch {
+          toast.error("Error rechazando usuario");
+        }
+      },
+      "danger"
+    );
   };
 
-  const handleDelete = async (emp) => {
-    if (!confirm(`¿Está seguro de eliminar a ${emp.Nombre} ${emp.Apellidos}?\nEsta acción no se puede deshacer.`)) return;
-
-    try {
-      const res = await fetchAuth(`${API_BASE_URL}/empleados/${emp.ID}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        toast.success("Usuario eliminado correctamente");
-        fetchEmpleados();
-      } else {
-        const result = await res.json();
-        toast.error(result.error || "Error al eliminar");
-      }
-    } catch (err) {
-      toast.error("Error eliminando usuario");
-    }
+  const handleDelete = (emp) => {
+    showConfirm(
+      "Eliminar usuario",
+      `¿Está seguro de eliminar a ${emp.Nombre} ${emp.Apellidos}? Esta acción no se puede deshacer.`,
+      async () => {
+        cerrarConfirm();
+        try {
+          const res = await fetchAuth(`${API_BASE_URL}/empleados/${emp.ID}`, { method: "DELETE" });
+          if (res.ok) {
+            toast.success("Usuario eliminado correctamente");
+            fetchEmpleados(true);
+          } else {
+            const result = await res.json();
+            toast.error(result.error || "Error al eliminar");
+          }
+        } catch {
+          toast.error("Error eliminando usuario");
+        }
+      },
+      "danger"
+    );
   };
 
 
@@ -406,77 +448,58 @@ export default function Usuarios() {
 
       {/* Banner de usuarios pendientes */}
       {pendientes.length > 0 && (
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg overflow-hidden">
-          <div className="p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <Bell className="w-6 h-6 text-white" />
-              <h3 className="text-xl font-bold text-white">
-                {pendientes.length} {pendientes.length === 1 ? "Usuario Pendiente" : "Usuarios Pendientes"} de Aprobación
-              </h3>
-            </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {pendientes.map((emp) => (
-                <div
-                  key={emp.ID}
-                  className="bg-white/95 backdrop-blur-sm rounded-lg p-4 flex items-center justify-between gap-4"
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    {emp.Imagen ? (
-                      <img
-                        src={buildImageUrl(emp.Imagen)}
-                        alt={emp.Nombre}
-                        className="w-14 h-14 rounded-full object-cover border-2 border-orange-400"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center border-2 border-orange-400">
-                        <span className="text-orange-600 font-bold text-lg">
-                          {(emp.Nombre || "U")[0].toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-800 text-lg">
-                        {emp.Nombre} {emp.Apellidos}
-                      </p>
-                      <div className="flex flex-wrap gap-3 mt-1">
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Mail className="w-4 h-4" />
-                          {emp.Correo}
-                        </div>
-                        {emp.Telefono && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <Phone className="w-4 h-4" />
-                            {emp.Telefono}
-                          </div>
-                        )}
-                        {emp.DNI && (
-                          <div className="flex items-center gap-1 text-sm text-gray-600">
-                            <Shield className="w-4 h-4" />
-                            DNI: {emp.DNI}
-                          </div>
-                        )}
-                      </div>
+        <div className="bg-white border-2 border-orange-400 rounded-xl shadow-md mb-4">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-orange-200 bg-orange-50 rounded-t-xl">
+            <Bell className="w-4 h-4 text-orange-500" />
+            <h3 className="text-sm font-bold text-orange-600">
+              {pendientes.length} {pendientes.length === 1 ? "usuario pendiente" : "usuarios pendientes"} de aprobación
+            </h3>
+          </div>
+          <div className="divide-y divide-orange-100 max-h-72 overflow-y-auto">
+            {pendientes.map((emp) => (
+              <div key={emp.ID} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {(emp.Imagen || emp.imagen) ? (
+                    <img
+                      src={buildImageUrl(emp.Imagen || emp.imagen)}
+                      alt={emp.Nombre}
+                      className="w-9 h-9 rounded-full object-cover border-2 border-orange-300 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center border-2 border-orange-300 flex-shrink-0">
+                      <span className="text-orange-600 font-bold text-xs">
+                        {(emp.Nombre || "U")[0].toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800 text-sm truncate">
+                      {emp.Nombre} {emp.Apellidos}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-xs text-gray-500 truncate">{emp.Correo}</span>
+                      {emp.DNI && <span className="text-xs text-gray-400">DNI: {emp.DNI}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleAprobarClick(emp)}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Aprobar
-                    </button>
-                    <button
-                      onClick={() => handleRechazar(emp)}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Rechazar
-                    </button>
-                  </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => handleAprobarClick(emp)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-xs font-medium"
+                  >
+                    <CheckCircle className="w-3 h-3" />
+                    Aprobar
+                  </button>
+                  <button
+                    onClick={() => handleRechazar(emp)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-xs font-medium"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -486,7 +509,7 @@ export default function Usuarios() {
         {/* COLUMNA IZQUIERDA - Formulario */}
         <div className="md:col-span-1">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="bg-sky-500 p-2 flex items-center justify-between">
+            <div className="bg-blue-400 p-2 flex items-center justify-between">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <UserPlus className="w-4 h-4" />
                 {editId ? "Editar Usuario" : "Registrar Usuario"}
@@ -867,14 +890,14 @@ export default function Usuarios() {
         {/* COLUMNA DERECHA - Lista */}
         <div className="md:col-span-2">
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="bg-sky-400 p-2">
+            <div className="bg-blue-400 p-2">
               <h2 className="text-sm font-bold text-white">Lista de Usuarios</h2>
             </div>
 
             {/* Tabla con scroll */}
             <div className="overflow-x-auto max-h-[calc(100vh-250px)] overflow-y-auto">
               <table className="w-full text-sm">
-                <thead className="bg-sky-500 text-white sticky top-0">
+                <thead className="bg-blue-400 text-white sticky top-0">
                   <tr>
                     <th className="px-1.5 py-1.5 text-left text-[10px] font-medium uppercase">Nombre</th>
                     <th className="px-1.5 py-1.5 text-left text-[10px] font-medium uppercase">Email</th>
@@ -933,14 +956,14 @@ export default function Usuarios() {
                         <td className="px-1.5 py-1.5">
                           <span
                             className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                              emp.Perfil === "administrador"
+                              (emp.Perfil === "administrador" || emp.Perfil === "admin")
                                 ? "bg-purple-100 text-purple-700"
                                 : emp.Perfil === "gerente"
                                 ? "bg-blue-100 text-blue-700"
                                 : "bg-green-100 text-green-700"
                             }`}
                           >
-                            {emp.Perfil}
+                            {(emp.Perfil === "admin") ? "administrador" : emp.Perfil}
                           </span>
                         </td>
 
@@ -967,11 +990,11 @@ export default function Usuarios() {
                         {/* Foto */}
                         <td className="px-1.5 py-1.5">
                           <div className="flex justify-center">
-                            {emp.Imagen ? (
+                            {(emp.Imagen || emp.imagen) ? (
                               <img
-                                src={buildImageUrl(emp.Imagen)}
+                                src={buildImageUrl(emp.Imagen || emp.imagen)}
                                 alt={emp.Nombre}
-                                onClick={() => setFotoAmpliada(buildImageUrl(emp.Imagen))}
+                                onClick={() => setFotoAmpliada(buildImageUrl(emp.Imagen || emp.imagen))}
                                 className="w-7 h-7 rounded-full object-cover border border-sky-400 cursor-pointer hover:scale-110 transition-transform"
                               />
                             ) : (
@@ -1028,137 +1051,134 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Modal de aprobación */}
+      {/* Modal de aprobación - compacto */}
       {showModalAprobar && empleadoAprobar && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full">
-            <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6 flex items-center justify-between rounded-t-xl">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-6 h-6" />
-                <h2 className="text-xl font-bold">Aprobar Usuario</h2>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-xs overflow-hidden">
+            {/* Header */}
+            <div className="bg-green-600 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {(empleadoAprobar.Imagen || empleadoAprobar.imagen) ? (
+                  <img
+                    src={buildImageUrl(empleadoAprobar.Imagen || empleadoAprobar.imagen)}
+                    alt={empleadoAprobar.Nombre}
+                    className="w-8 h-8 rounded-full object-cover border border-white/50"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center border border-white/50">
+                    <span className="text-white font-bold text-xs">
+                      {(empleadoAprobar.Nombre || "U")[0].toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <p className="text-white font-semibold text-sm leading-tight">
+                    {empleadoAprobar.Nombre} {empleadoAprobar.Apellidos}
+                  </p>
+                  <p className="text-green-200 text-xs truncate max-w-[160px]">{empleadoAprobar.Correo}</p>
+                </div>
               </div>
               <button
-                onClick={() => {
-                  setShowModalAprobar(false);
-                  setEmpleadoAprobar(null);
-                }}
-                className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                onClick={() => { setShowModalAprobar(false); setEmpleadoAprobar(null); }}
+                className="text-white/80 hover:text-white transition-colors"
               >
-                <X className="w-6 h-6" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6">
-              {/* Datos del usuario */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-4 mb-3">
-                  {empleadoAprobar.Imagen ? (
-                    <img
-                      src={buildImageUrl(empleadoAprobar.Imagen)}
-                      alt={empleadoAprobar.Nombre}
-                      className="w-16 h-16 rounded-full object-cover border-2 border-green-500"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center border-2 border-green-500">
-                      <span className="text-green-600 font-bold text-xl">
-                        {(empleadoAprobar.Nombre || "U")[0].toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-bold text-lg text-gray-800">
-                      {empleadoAprobar.Nombre} {empleadoAprobar.Apellidos}
-                    </p>
-                    <p className="text-sm text-gray-600">{empleadoAprobar.Correo}</p>
-                    {empleadoAprobar.DNI && (
-                      <p className="text-sm text-gray-600">DNI: {empleadoAprobar.DNI}</p>
-                    )}
+            {/* Campos */}
+            <div className="p-4 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Perfil / Rol <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formAprobacion.perfil}
+                  onChange={(e) => setFormAprobacion({ ...formAprobacion, perfil: e.target.value })}
+                  className="w-full px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  <option value="vendedor">Vendedor</option>
+                  <option value="gerente">Gerente</option>
+                  <option value="administrador">Administrador</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Salario mensual (S/) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                    <DollarSign className="w-3.5 h-3.5" />
                   </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formAprobacion.salario}
+                    onChange={(e) => setFormAprobacion({ ...formAprobacion, salario: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
                 </div>
               </div>
 
-              {/* Formulario de aprobación */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Perfil / Rol <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formAprobacion.perfil}
-                    onChange={(e) =>
-                      setFormAprobacion({ ...formAprobacion, perfil: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="vendedor">Vendedor</option>
-                    <option value="gerente">Gerente</option>
-                    <option value="administrador">Administrador</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sucursal <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formAprobacion.sucursal_id}
-                    onChange={(e) =>
-                      setFormAprobacion({ ...formAprobacion, sucursal_id: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Seleccionar...</option>
-                    {sucursales
-                      .filter((s) => s.estado === "activa")
-                      .map((s) => (
-                        <option key={s.ID} value={s.ID}>
-                          {s.nombre}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Salario Mensual (S/) <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formAprobacion.salario}
-                      onChange={(e) =>
-                        setFormAprobacion({ ...formAprobacion, salario: e.target.value })
-                      }
-                      placeholder="0.00"
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Ingrese el salario mensual del empleado
-                  </p>
-                </div>
-              </div>
-
-              {/* Botones */}
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-2 pt-1">
                 <button
                   onClick={handleAprobar}
-                  className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  Aprobar Usuario
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Aprobar
                 </button>
                 <button
-                  onClick={() => {
-                    setShowModalAprobar(false);
-                    setEmpleadoAprobar(null);
-                  }}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2.5 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                  onClick={() => { setShowModalAprobar(false); setEmpleadoAprobar(null); }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación */}
+      {confirmModal.show && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[200]">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden">
+            <div className={`p-4 flex items-center gap-3 ${
+              confirmModal.icon === "danger" ? "bg-red-600" :
+              confirmModal.icon === "success" ? "bg-green-600" :
+              "bg-amber-500"
+            }`}>
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                {confirmModal.icon === "danger" ? (
+                  <Trash2 className="w-4 h-4 text-white" />
+                ) : confirmModal.icon === "success" ? (
+                  <CheckCircle className="w-4 h-4 text-white" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-white" />
+                )}
+              </div>
+              <h3 className="text-white font-bold text-base">{confirmModal.title}</h3>
+            </div>
+            <div className="p-5">
+              <p className="text-gray-700 text-sm mb-5">{confirmModal.message}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className={`flex-1 py-2 rounded-lg text-white font-semibold text-sm transition-colors ${
+                    confirmModal.icon === "danger" ? "bg-red-600 hover:bg-red-700" :
+                    confirmModal.icon === "success" ? "bg-green-600 hover:bg-green-700" :
+                    "bg-amber-500 hover:bg-amber-600"
+                  }`}
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={cerrarConfirm}
+                  className="flex-1 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-sm transition-colors"
                 >
                   Cancelar
                 </button>

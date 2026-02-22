@@ -1,9 +1,11 @@
 import React, { createContext, useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "sonner";
 import Admin from "./Admin";
 import { Login } from "./pages/login";
 import { SignUp } from "./pages/Registro";
 import { getUsuario, cerrarSesionStorage } from "./funciones/auth";
+import { limpiarFormulariosGuardados } from "./funciones/useSessionState";
 import { CajaProvider } from "./funciones/CajaContext";
 import { SucursalProvider } from "./context/SucursalContext";
 
@@ -25,8 +27,17 @@ export function App2() {
     setUsuario(usuarioData);
   };
 
+  const actualizarUsuario = (cambios) => {
+    setUsuario((prev) => {
+      const updated = { ...prev, ...cambios };
+      import("./funciones/auth").then(({ setUsuario: saveUsuario }) => saveUsuario(updated));
+      return updated;
+    });
+  };
+
   const cerrarSesion = () => {
     cerrarSesionStorage();
+    limpiarFormulariosGuardados();
     setUsuario(null);
     window.location.href = "/";
   };
@@ -44,7 +55,8 @@ export function App2() {
 
   return (
     <BrowserRouter>
-      <NombreContexto.Provider value={{ usuario, iniciarSesion, cerrarSesion }}>
+      <Toaster richColors position="top-right" />
+      <NombreContexto.Provider value={{ usuario, iniciarSesion, cerrarSesion, actualizarUsuario }}>
         {usuario ? (
           <SucursalProvider>
             <CajaProvider>

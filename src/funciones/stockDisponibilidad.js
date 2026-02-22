@@ -1,3 +1,6 @@
+/** Normalizar texto: sin acentos, minúsculas, sin espacios extra */
+const norm = (str) => (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
 /**
  * Utilidad compartida para validación de stock VIRTUAL.
  * Funciones puras sin dependencia de React.
@@ -233,12 +236,12 @@ export function calcularStockConsumidoEnListaLocal(
 
     if (
       item.tipo === "individual" &&
-      item.nombre?.toLowerCase() === nombreProducto?.toLowerCase()
+      norm(item.nombre) === norm(nombreProducto)
     ) {
       consumido += item.cantidad || 1;
     } else if (item.tipo === "combo" && item.productos_escaneados) {
       const productoEnCombo = item.productos_escaneados.find(
-        (p) => p.nombre?.toLowerCase() === nombreProducto?.toLowerCase()
+        (p) => norm(p.nombre) === norm(nombreProducto)
       );
       if (productoEnCombo) {
         consumido += item.cantidad || 1;
@@ -246,6 +249,22 @@ export function calcularStockConsumidoEnListaLocal(
     }
   }
   return consumido;
+}
+
+/**
+ * Construye mensaje detallado de reservas del día siguiente para alertas.
+ * Usado en reservas individuales, grupales y ventas.
+ */
+export function buildMensajeDiaSiguiente(nombreProducto, reservasDiaSiguiente) {
+  const totalDiaSiguiente = reservasDiaSiguiente.reduce((sum, r) => sum + r.cantidad, 0);
+  const detalleReservas = reservasDiaSiguiente.map((r) => {
+    const cliente = r.cliente;
+    const nombreCliente = cliente
+      ? `${cliente.nombre || cliente.Nombre || ""} ${cliente.apellidos || cliente.Apellidos || ""}`.trim()
+      : "Cliente desconocido";
+    return `  • Reserva #${r.idReserva} — ${nombreCliente} (${r.cantidad} unid.)`;
+  }).join("\n");
+  return `"${nombreProducto}" tiene ${totalDiaSiguiente} unidad(es) alquiladas para el día siguiente:\n${detalleReservas}\n\nAsegúrese de que el cliente devuelva a tiempo.`;
 }
 
 /**

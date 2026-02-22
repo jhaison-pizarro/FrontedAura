@@ -7,18 +7,44 @@ import { NombreContexto } from "../App2";
 import { buildImageUrl } from "../funciones/imageUtils";
 import { useNavigate } from "react-router-dom";
 
-// Fondos
-import fondo1 from "../assets/DALL·E 2024-09-26 18.10.00 - A stylish and elegant background image for a clothing store specializing in evening gowns and formal dresses. The design features a luxurious setting .webp";
-import fondo2 from "../assets/fondo.webp";
-import fondo3 from "../assets/Designer.jpeg";
-import fondo4 from "../assets/Designer (1).jpeg";
-import fondo5 from "../assets/Designer (2).jpeg";
-import fondo6 from "../assets/Designer (3).jpeg";
-import fondo7 from "../assets/Designer (4).jpeg";
-import fondo8 from "../assets/fondo1.png";
-import fondo9 from "../assets/imasdd.webp";
+// Fondos desde carpeta dedicada
+import fondo1 from "../assets/fondo-login/fondo1.webp";
+import fondo2 from "../assets/fondo-login/fondo2.webp";
+import fondo3 from "../assets/fondo-login/fondo3.jpeg";
+import fondo4 from "../assets/fondo-login/fondo4.jpeg";
+import fondo5 from "../assets/fondo-login/fondo5.jpeg";
+import fondo6 from "../assets/fondo-login/fondo6.jpeg";
+import fondo7 from "../assets/fondo-login/fondo7.jpeg";
+import fondo8 from "../assets/fondo-login/fondo8.png";
+import fondo9 from "../assets/fondo-login/fondo9.webp";
+import fondo10 from "../assets/fondo-login/fondo10.png";
+import fondo11 from "../assets/fondo-login/fondo11.png";
+import fondo12 from "../assets/fondo-login/fondo12.png";
+import fondo13 from "../assets/fondo-login/fondo13.png";
+import fondo14 from "../assets/fondo-login/fondo14.png";
+import fondo15 from "../assets/fondo-login/fondo15.png";
+import fondo16 from "../assets/fondo-login/fondo16.png";
+import fondo17 from "../assets/fondo-login/fondo17.png";
+import fondo18 from "../assets/fondo-login/fondo18.png";
+import fondo19 from "../assets/fondo-login/fondo19.png";
 
-const fondosLogin = [fondo1, fondo2, fondo3, fondo4, fondo5, fondo6, fondo7, fondo8, fondo9];
+const fondosLogin = [
+  fondo1, fondo2, fondo3, fondo4, fondo5, fondo6, fondo7, fondo8, fondo9,
+  fondo10, fondo11, fondo12, fondo13, fondo14, fondo15, fondo16, fondo17, fondo18, fondo19,
+];
+
+// Direcciones alternadas para efecto Ken Burns (pan + zoom suave)
+const kenBurnsDirections = [
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.15) translate(-2%, -1%)" },
+  { from: "scale(1.1) translate(-2%, 0%)", to: "scale(1) translate(2%, 1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.12) translate(1%, -2%)" },
+  { from: "scale(1.1) translate(1%, 1%)", to: "scale(1) translate(-1%, 0%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.15) translate(-1%, 2%)" },
+  { from: "scale(1.12) translate(0%, -1%)", to: "scale(1) translate(1%, 1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.1) translate(2%, -1%)" },
+  { from: "scale(1.1) translate(-1%, 1%)", to: "scale(1) translate(0%, -1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.12) translate(-2%, 1%)" },
+];
 
 export function Login() {
   const { iniciarSesion } = useContext(NombreContexto);
@@ -38,6 +64,11 @@ export function Login() {
   const [nuevaPassword, setNuevaPassword] = useState("");
   const [confirmarPassword, setConfirmarPassword] = useState("");
   const [tiempoRestante, setTiempoRestante] = useState(0);
+  const [showNuevaPassword, setShowNuevaPassword] = useState(false);
+  const [showConfirmarPassword, setShowConfirmarPassword] = useState(false);
+  const [isSolicitando, setIsSolicitando] = useState(false);
+  const [isVerificando, setIsVerificando] = useState(false);
+  const [isCambiando, setIsCambiando] = useState(false);
 
   // Fondo rotativo - cambia cada 6 segundos
   useEffect(() => {
@@ -83,7 +114,15 @@ export function Login() {
       const result = await res.json();
 
       if (!res.ok) {
-        toast.error(result.error || "Error en el login");
+        // Backend retorna {message, estado} para pendiente/inactivo, {error} para credenciales inválidas
+        const msg = result.message || result.error || "Error en el login";
+        if (result.estado === "pendiente") {
+          toast.warning(msg);
+        } else if (result.estado === "inactivo") {
+          toast.error(msg);
+        } else {
+          toast.error(msg);
+        }
         setIsSubmitting(false);
         return;
       }
@@ -113,6 +152,8 @@ export function Login() {
       return;
     }
 
+    setIsSolicitando(true);
+    const toastId = toast.loading("Enviando código...");
     try {
       const res = await fetch(`${API_BASE_URL}/auth/solicitar-recuperacion`, {
         method: "POST",
@@ -123,14 +164,16 @@ export function Login() {
       const result = await res.json();
 
       if (res.ok) {
-        toast.success("Código enviado a su correo");
+        toast.success("Código enviado a su correo", { id: toastId });
         setPaso(2);
         setTiempoRestante(120);
       } else {
-        toast.error(result.error || result.mensaje || "Error al enviar código");
+        toast.error(result.error || result.mensaje || "Error al enviar código", { id: toastId });
       }
-    } catch (error) {
-      toast.error("Error de conexión");
+    } catch {
+      toast.error("Error de conexión", { id: toastId });
+    } finally {
+      setIsSolicitando(false);
     }
   };
 
@@ -145,6 +188,8 @@ export function Login() {
       return;
     }
 
+    setIsVerificando(true);
+    const toastId = toast.loading("Verificando código...");
     try {
       const res = await fetch(`${API_BASE_URL}/auth/verificar-codigo`, {
         method: "POST",
@@ -155,14 +200,35 @@ export function Login() {
       const result = await res.json();
 
       if (res.ok) {
-        toast.success("Código verificado correctamente");
+        toast.success("Código verificado correctamente", { id: toastId });
         setPaso(3);
       } else {
-        toast.error(result.error || result.mensaje || "Código incorrecto o expirado");
+        toast.error(result.error || result.mensaje || "Código incorrecto o expirado", { id: toastId });
       }
-    } catch (error) {
-      toast.error("Error de conexión");
+    } catch {
+      toast.error("Error de conexión", { id: toastId });
+    } finally {
+      setIsVerificando(false);
     }
+  };
+
+  // Calcula la fortaleza de la contraseña (0-5)
+  const calcularFortaleza = (pwd) => {
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[a-z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return score;
+  };
+
+  const fortalezaInfo = (score) => {
+    if (score === 0) return { label: "", color: "", bg: "" };
+    if (score <= 2) return { label: "Débil", color: "text-red-400", bg: "bg-red-500" };
+    if (score === 3) return { label: "Media", color: "text-yellow-400", bg: "bg-yellow-500" };
+    if (score === 4) return { label: "Buena", color: "text-blue-400", bg: "bg-blue-500" };
+    return { label: "Fuerte", color: "text-green-400", bg: "bg-green-500" };
   };
 
   const handleCambiarPassword = async () => {
@@ -171,8 +237,9 @@ export function Login() {
       return;
     }
 
-    if (nuevaPassword.length < 6) {
-      toast.error("La contraseña debe tener al menos 6 caracteres");
+    const fortaleza = calcularFortaleza(nuevaPassword);
+    if (fortaleza < 5) {
+      toast.error("La contraseña debe ser fuerte (mayúscula, minúscula, número, símbolo y mín. 8 caracteres)");
       return;
     }
 
@@ -181,6 +248,8 @@ export function Login() {
       return;
     }
 
+    setIsCambiando(true);
+    const toastId = toast.loading("Cambiando contraseña...");
     try {
       const res = await fetch(`${API_BASE_URL}/auth/restablecer-contrasena`, {
         method: "POST",
@@ -195,7 +264,7 @@ export function Login() {
       const result = await res.json();
 
       if (res.ok) {
-        toast.success("Contraseña cambiada exitosamente");
+        toast.success("Contraseña cambiada exitosamente", { id: toastId });
         setShowRecuperacion(false);
         setPaso(1);
         setEmailRecuperacion("");
@@ -204,10 +273,12 @@ export function Login() {
         setConfirmarPassword("");
         setTiempoRestante(0);
       } else {
-        toast.error(result.error || result.mensaje || "Error al cambiar contraseña");
+        toast.error(result.error || result.mensaje || "Error al cambiar contraseña", { id: toastId });
       }
-    } catch (error) {
-      toast.error("Error de conexión");
+    } catch {
+      toast.error("Error de conexión", { id: toastId });
+    } finally {
+      setIsCambiando(false);
     }
   };
 
@@ -227,28 +298,33 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gray-900">
-      {/* Fondos rotativos - con z-index para asegurar crossfade sin parpadeo */}
-      {fondosLogin.map((fondo, index) => (
-        <div
-          key={index}
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-2000 ${
-            index === fondoActual ? "opacity-100 z-10" : "opacity-0 z-0"
-          }`}
-          style={{
-            backgroundImage: `url(${fondo})`,
-            willChange: 'opacity'
-          }}
-        />
-      ))}
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-blue-950">
+      {/* Fondos rotativos con efecto Ken Burns (pan + zoom suave) */}
+      {fondosLogin.map((fondo, index) => {
+        const isActive = index === fondoActual;
+        const dir = kenBurnsDirections[index % kenBurnsDirections.length];
+        return (
+          <div
+            key={index}
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${fondo})`,
+              opacity: isActive ? 1 : 0,
+              transform: isActive ? dir.to : dir.from,
+              transition: 'opacity 2s ease-in-out, transform 7s ease-in-out',
+              zIndex: isActive ? 2 : 1,
+            }}
+          />
+        );
+      })}
 
       {/* Overlay semi-transparente oscuro */}
       <div className="absolute inset-0 bg-black/20 z-20"></div>
 
       {/* Tarjeta de Login */}
-      <div className="relative w-full max-w-[380px] bg-gray-900/30 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden z-30">
+      <div className="relative w-full max-w-[380px] bg-slate-900/70 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden z-30">
         {/* Header con logo */}
-        <div className="bg-gradient-to-r from-gray-800/25 via-gray-700/25 to-gray-800/25 p-6 text-center border-b border-gray-600/20">
+        <div className="bg-slate-800/60 p-6 text-center border-b border-slate-600/30">
           {empresaConfig?.logo ? (
             <div className="w-16 h-16 mx-auto mb-3 rounded-lg bg-white/90 p-1.5 shadow-lg flex items-center justify-center border-2 border-sky-400/50">
               <img
@@ -279,60 +355,50 @@ export function Login() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Input Correo */}
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
-                <FaUser size={16} />
-              </div>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder=" "
-                required
-                className="peer w-full pl-10 pr-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-transparent transition-all"
-              />
-              <label
-                htmlFor="email"
-                className="absolute left-10 top-2.5 text-gray-300 text-sm transition-all duration-200
-                peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm
-                peer-focus:top-0 peer-focus:text-xs peer-focus:text-sky-400 peer-focus:bg-gray-900/30 peer-focus:px-1
-                peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-sky-400 peer-[:not(:placeholder-shown)]:bg-gray-900/30 peer-[:not(:placeholder-shown)]:px-1"
-              >
+            <div>
+              <label className="block text-xs text-sky-300 mb-1 ml-1 font-medium">
                 Correo Electrónico
               </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
+                  <FaUser size={14} />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  required
+                  className="w-full pl-9 pr-3 py-2.5 bg-blue-800/30 border border-blue-500/30 rounded-lg text-white text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent transition-all"
+                />
+              </div>
             </div>
 
             {/* Input Contraseña */}
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80 z-10">
-                <FaLock size={16} />
-              </div>
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder=" "
-                required
-                className="peer w-full pl-10 pr-11 py-2.5 bg-gray-800/60 border-2 border-gray-600/50 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-transparent transition-all"
-              />
-              <label
-                htmlFor="password"
-                className="absolute left-10 top-2.5 text-gray-300 text-sm transition-all duration-200
-                peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm
-                peer-focus:top-0 peer-focus:text-xs peer-focus:text-sky-400 peer-focus:bg-gray-900/30 peer-focus:px-1
-                peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-sky-400 peer-[:not(:placeholder-shown)]:bg-gray-900/30 peer-[:not(:placeholder-shown)]:px-1"
-              >
+            <div>
+              <label className="block text-xs text-sky-300 mb-1 ml-1 font-medium">
                 Contraseña
               </label>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors z-10"
-              >
-                {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
-              </button>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80 z-10">
+                  <FaLock size={14} />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-9 pr-11 py-2.5 bg-blue-800/30 border border-blue-500/30 rounded-lg text-white text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors z-10"
+                >
+                  {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                </button>
+              </div>
             </div>
 
             {/* Botón de Login */}
@@ -416,9 +482,17 @@ export function Login() {
 
                   <button
                     onClick={handleSolicitarCodigo}
-                    className="w-full py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white font-semibold rounded-lg transition-all"
+                    disabled={isSolicitando}
+                    className="w-full py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Enviar Código
+                    {isSolicitando ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Enviando...</span>
+                      </div>
+                    ) : (
+                      "Enviar Código"
+                    )}
                   </button>
                 </div>
               )}
@@ -458,54 +532,131 @@ export function Login() {
                     </button>
                     <button
                       onClick={handleVerificarCodigo}
-                      className="flex-1 py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white font-semibold rounded-lg transition-all"
+                      disabled={isVerificando}
+                      className="flex-1 py-2.5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Verificar
+                      {isVerificando ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Verificando...</span>
+                        </div>
+                      ) : (
+                        "Verificar"
+                      )}
                     </button>
                   </div>
                 </div>
               )}
 
-              {paso === 3 && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-300">
-                    Ingrese su nueva contraseña
-                  </p>
+              {paso === 3 && (() => {
+                const score = calcularFortaleza(nuevaPassword);
+                const { label, color, bg } = fortalezaInfo(score);
+                const noCoinciden = confirmarPassword.length > 0 && nuevaPassword !== confirmarPassword;
+                const puedeEnviar = score === 5 && nuevaPassword === confirmarPassword && confirmarPassword.length > 0;
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-300">Ingrese su nueva contraseña</p>
 
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
-                      <FaLock size={16} />
+                    {/* Nueva contraseña */}
+                    <div>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
+                          <FaLock size={14} />
+                        </div>
+                        <input
+                          type={showNuevaPassword ? "text" : "password"}
+                          value={nuevaPassword}
+                          onChange={(e) => setNuevaPassword(e.target.value)}
+                          placeholder="Nueva contraseña"
+                          className="w-full pl-9 pr-10 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNuevaPassword(!showNuevaPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors"
+                        >
+                          {showNuevaPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                        </button>
+                      </div>
+
+                      {/* Barra de fortaleza */}
+                      {nuevaPassword.length > 0 && (
+                        <div className="mt-1.5 space-y-1">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <div
+                                key={i}
+                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                                  i <= score ? bg : "bg-gray-600/50"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <p className={`text-xs font-medium ${color}`}>
+                            Contraseña {label}
+                            {score < 5 && (
+                              <span className="text-gray-400 font-normal ml-1">
+                                — necesita: {[
+                                  nuevaPassword.length < 8 && "8+ caracteres",
+                                  !/[A-Z]/.test(nuevaPassword) && "mayúscula",
+                                  !/[a-z]/.test(nuevaPassword) && "minúscula",
+                                  !/[0-9]/.test(nuevaPassword) && "número",
+                                  !/[^A-Za-z0-9]/.test(nuevaPassword) && "símbolo",
+                                ].filter(Boolean).join(", ")}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <input
-                      type="password"
-                      value={nuevaPassword}
-                      onChange={(e) => setNuevaPassword(e.target.value)}
-                      placeholder="Nueva contraseña"
-                      className="w-full pl-10 pr-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-transparent"
-                    />
-                  </div>
 
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
-                      <FaLock size={16} />
+                    {/* Confirmar contraseña */}
+                    <div>
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400/80">
+                          <FaLock size={14} />
+                        </div>
+                        <input
+                          type={showConfirmarPassword ? "text" : "password"}
+                          value={confirmarPassword}
+                          onChange={(e) => setConfirmarPassword(e.target.value)}
+                          placeholder="Confirmar contraseña"
+                          className={`w-full pl-9 pr-10 py-2.5 bg-gray-800/30 border-2 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:border-transparent transition-all ${
+                            noCoinciden
+                              ? "border-red-500/60 focus:ring-red-500/80"
+                              : "border-gray-600/30 focus:ring-sky-500/80"
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmarPassword(!showConfirmarPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors"
+                        >
+                          {showConfirmarPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                        </button>
+                      </div>
+                      {noCoinciden && (
+                        <p className="text-xs text-red-400 mt-1 ml-1">Las contraseñas no coinciden</p>
+                      )}
                     </div>
-                    <input
-                      type="password"
-                      value={confirmarPassword}
-                      onChange={(e) => setConfirmarPassword(e.target.value)}
-                      placeholder="Confirmar contraseña"
-                      className="w-full pl-10 pr-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500/80 focus:border-transparent"
-                    />
-                  </div>
 
-                  <button
-                    onClick={handleCambiarPassword}
-                    className="w-full py-2.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-lg transition-all"
-                  >
-                    Cambiar Contraseña
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={handleCambiarPassword}
+                      disabled={!puedeEnviar || isCambiando}
+                      className="w-full py-2.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCambiando ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Cambiando...</span>
+                        </div>
+                      ) : (
+                        "Cambiar Contraseña"
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

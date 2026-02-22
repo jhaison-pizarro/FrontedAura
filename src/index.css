@@ -2,9 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 body{
-  background-color:azure; 
-  color: white;
-  
+  background-color:azure;
+  color: #111;
+
 }
 /*
 /* Contenedor principal */

@@ -8,22 +8,48 @@ import { API_BASE_URL } from "../config";
 import { comprimirImagen } from "../funciones/funciones";
 import VoiceMicButton from "../components/VoiceMicButton";
 
-// Importar las mismas imágenes del login
-import fondo1 from "../assets/DALL·E 2024-09-26 18.10.00 - A stylish and elegant background image for a clothing store specializing in evening gowns and formal dresses. The design features a luxurious setting .webp";
-import fondo2 from "../assets/fondo.webp";
-import fondo3 from "../assets/Designer.jpeg";
-import fondo4 from "../assets/Designer (1).jpeg";
-import fondo5 from "../assets/Designer (2).jpeg";
-import fondo6 from "../assets/Designer (3).jpeg";
-import fondo7 from "../assets/Designer (4).jpeg";
-import fondo8 from "../assets/fondo1.png";
-import fondo9 from "../assets/imasdd.webp";
+// Fondos desde carpeta dedicada
+import fondo1 from "../assets/fondo-login/fondo1.webp";
+import fondo2 from "../assets/fondo-login/fondo2.webp";
+import fondo3 from "../assets/fondo-login/fondo3.jpeg";
+import fondo4 from "../assets/fondo-login/fondo4.jpeg";
+import fondo5 from "../assets/fondo-login/fondo5.jpeg";
+import fondo6 from "../assets/fondo-login/fondo6.jpeg";
+import fondo7 from "../assets/fondo-login/fondo7.jpeg";
+import fondo8 from "../assets/fondo-login/fondo8.png";
+import fondo9 from "../assets/fondo-login/fondo9.webp";
+import fondo10 from "../assets/fondo-login/fondo10.png";
+import fondo11 from "../assets/fondo-login/fondo11.png";
+import fondo12 from "../assets/fondo-login/fondo12.png";
+import fondo13 from "../assets/fondo-login/fondo13.png";
+import fondo14 from "../assets/fondo-login/fondo14.png";
+import fondo15 from "../assets/fondo-login/fondo15.png";
+import fondo16 from "../assets/fondo-login/fondo16.png";
+import fondo17 from "../assets/fondo-login/fondo17.png";
+import fondo18 from "../assets/fondo-login/fondo18.png";
+import fondo19 from "../assets/fondo-login/fondo19.png";
 
-const fondos = [fondo1, fondo2, fondo3, fondo4, fondo5, fondo6, fondo7, fondo8, fondo9];
+const fondos = [
+  fondo1, fondo2, fondo3, fondo4, fondo5, fondo6, fondo7, fondo8, fondo9,
+  fondo10, fondo11, fondo12, fondo13, fondo14, fondo15, fondo16, fondo17, fondo18, fondo19,
+];
+
+// Direcciones alternadas para efecto Ken Burns (pan + zoom suave)
+const kenBurnsDirections = [
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.15) translate(-2%, -1%)" },
+  { from: "scale(1.1) translate(-2%, 0%)", to: "scale(1) translate(2%, 1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.12) translate(1%, -2%)" },
+  { from: "scale(1.1) translate(1%, 1%)", to: "scale(1) translate(-1%, 0%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.15) translate(-1%, 2%)" },
+  { from: "scale(1.12) translate(0%, -1%)", to: "scale(1) translate(1%, 1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.1) translate(2%, -1%)" },
+  { from: "scale(1.1) translate(-1%, 1%)", to: "scale(1) translate(0%, -1%)" },
+  { from: "scale(1) translate(0%, 0%)", to: "scale(1.12) translate(-2%, 1%)" },
+];
 
 export function SignUp() {
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm();
+  const { register, handleSubmit, formState: { errors }, setValue, watch, trigger } = useForm({ mode: "onChange" });
 
   const [fondoActual, setFondoActual] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +60,6 @@ export function SignUp() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const perfil = watch("perfil");
   const passwordNueva = watch("password");
   const confirmPassword = watch("confirmPassword");
 
@@ -50,7 +75,7 @@ export function SignUp() {
   useEffect(() => {
     const fetchSucursales = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/sucursales`);
+        const res = await fetch(`${API_BASE_URL}/sucursales/public`);
         if (res.ok) {
           const data = await res.json();
           setSucursales(data);
@@ -135,26 +160,26 @@ export function SignUp() {
   };
 
   // Enviar formulario
-  const onSubmit = async (data) => {
-    if (data.password !== data.confirmPassword) {
+  const onSubmit = async (formValues) => {
+    if (formValues.password !== formValues.confirmPassword) {
       toast.error("Las contraseñas no coinciden");
       return;
     }
 
     setLoading(true);
+    const toastId = toast.loading("Registrando cuenta...");
     try {
       const formData = new FormData();
-      formData.append("dni", data.dni);
-      formData.append("nombre", data.nombre);
-      formData.append("apellidos", data.apellidos);
-      formData.append("correo", data.correo);
-      formData.append("telefono", data.telefono);
-      formData.append("direccion", data.direccion);
-      formData.append("password", data.password);
-      formData.append("perfil", data.perfil);
+      formData.append("dni", formValues.dni);
+      formData.append("nombre", formValues.nombre);
+      formData.append("apellidos", formValues.apellidos);
+      formData.append("correo", formValues.correo);
+      formData.append("telefono", formValues.telefono || "");
+      formData.append("direccion", formValues.direccion || "");
+      formData.append("password", formValues.password);
 
-      if (data.perfil === "vendedor" && data.sucursal_id) {
-        formData.append("sucursal_id", data.sucursal_id);
+      if (formValues.sucursal_id) {
+        formData.append("sucursal_id", formValues.sucursal_id);
       }
 
       if (selectedFile) {
@@ -167,15 +192,15 @@ export function SignUp() {
         body: formData,
       });
 
+      const result = await response.json();
       if (response.ok) {
-        toast.success("Usuario registrado exitosamente");
-        navigate("/");
+        toast.success(result.message || "Registro exitoso. Su cuenta está pendiente de aprobación.", { id: toastId });
+        setTimeout(() => navigate("/"), 1500);
       } else {
-        const error = await response.json();
-        toast.error(error.message || "Error al registrar usuario");
+        toast.error(result.error || result.message || "Error al registrar usuario", { id: toastId });
       }
-    } catch (error) {
-      toast.error("Error al registrar usuario");
+    } catch {
+      toast.error("Error de conexión. Intente nuevamente.", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -188,17 +213,25 @@ export function SignUp() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Fondos rotativos */}
-      <div className="absolute inset-0 bg-gray-900">
-        {fondos.map((fondo, index) => (
-          <div
-            key={index}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-2000 ${
-              index === fondoActual ? "opacity-100 z-10" : "opacity-0 z-0"
-            }`}
-            style={{ backgroundImage: `url(${fondo})`, willChange: 'opacity' }}
-          />
-        ))}
+      {/* Fondos rotativos con efecto Ken Burns (pan + zoom suave) */}
+      <div className="absolute inset-0 bg-blue-950">
+        {fondos.map((fondo, index) => {
+          const isActive = index === fondoActual;
+          const dir = kenBurnsDirections[index % kenBurnsDirections.length];
+          return (
+            <div
+              key={index}
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                backgroundImage: `url(${fondo})`,
+                opacity: isActive ? 1 : 0,
+                transform: isActive ? dir.to : dir.from,
+                transition: 'opacity 2s ease-in-out, transform 7s ease-in-out',
+                zIndex: isActive ? 2 : 1,
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Overlay oscuro */}
@@ -206,9 +239,9 @@ export function SignUp() {
 
       {/* Contenido */}
       <div className="relative z-30 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-gray-900/30 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden">
+        <div className="w-full max-w-md bg-slate-900/70 backdrop-blur-md rounded-2xl shadow-2xl overflow-hidden">
           {/* Header con botón volver y voice */}
-          <div className="bg-sky-500/80 backdrop-blur-sm p-3 flex items-center justify-between">
+          <div className="bg-slate-800/60 p-2 flex items-center justify-between">
             <button
               onClick={() => navigate("/")}
               className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors group"
@@ -220,22 +253,22 @@ export function SignUp() {
           </div>
 
           {/* Body del formulario */}
-          <div className="p-4 bg-gray-900/20 backdrop-blur-sm">
-            <div className="text-center mb-3">
-              <h1 className="text-xl font-bold text-white mb-1">Crear Cuenta Nueva</h1>
+          <div className="p-3 overflow-y-auto max-h-[calc(100vh-60px)]">
+            <div className="text-center mb-2">
+              <h1 className="text-base font-bold text-white mb-0.5">Crear Cuenta Nueva</h1>
               <p className="text-gray-300 text-xs">Complete el formulario para registrarse</p>
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
               {/* Foto arriba */}
-              <div className="flex justify-center mb-3">
+              <div className="flex justify-center mb-1">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-full overflow-hidden border-3 border-white/30 bg-gray-800/50">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white/30 bg-gray-800/50">
                     {previsualizacion ? (
                       <img src={previsualizacion} alt="Preview" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <User className="w-10 h-10 text-gray-400" />
+                        <User className="w-7 h-7 text-gray-400" />
                       </div>
                     )}
                   </div>
@@ -253,7 +286,7 @@ export function SignUp() {
 
               {/* DNI con botón RENIEC */}
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
                   DNI <span className="text-red-500">*</span>
                 </label>
                 <div className="flex gap-2">
@@ -264,7 +297,7 @@ export function SignUp() {
                       required: "DNI requerido",
                       pattern: { value: /^[0-9]{8}$/, message: "DNI debe tener 8 dígitos" }
                     })}
-                    className={`flex-1 px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
+                    className={`flex-1 px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
                       errors.dni ? "border-red-500" : "border-gray-300"
                     }`}
                     placeholder="12345678"
@@ -285,148 +318,143 @@ export function SignUp() {
                 {errors.dni && <span className="text-red-400 text-xs mt-0.5 block">{errors.dni.message}</span>}
               </div>
 
-              {/* Nombre y Apellidos */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                    Nombre <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    {...register("nombre", {
-                      required: "Nombre requerido",
-                      minLength: { value: 2, message: "Mínimo 2 caracteres" }
-                    })}
-                    className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                      errors.nombre ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="Juan"
-                  />
-                  {errors.nombre && <span className="text-red-400 text-xs mt-0.5 block">{errors.nombre.message}</span>}
-                </div>
-
-                <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                    Apellidos <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    {...register("apellidos", {
-                      required: "Apellidos requeridos",
-                      minLength: { value: 2, message: "Mínimo 2 caracteres" }
-                    })}
-                    className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                      errors.apellidos ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="Pérez García"
-                  />
-                  {errors.apellidos && <span className="text-red-400 text-xs mt-0.5 block">{errors.apellidos.message}</span>}
-                </div>
-              </div>
-
-              {/* Correo */}
+              {/* Nombre */}
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                  Correo Electrónico <span className="text-red-500">*</span>
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                  Nombre <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="email"
-                  {...register("correo", {
-                    required: "Correo requerido",
-                    pattern: { value: /^\S+@\S+$/i, message: "Correo inválido" }
+                  type="text"
+                  {...register("nombre", {
+                    required: "Nombre requerido",
+                    minLength: { value: 2, message: "Mínimo 2 caracteres" }
                   })}
-                  className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                    errors.correo ? "border-red-500" : "border-gray-300"
+                  className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                    errors.nombre ? "border-red-500" : "border-blue-500/30"
                   }`}
-                  placeholder="correo@ejemplo.com"
+                  placeholder="Juan"
                 />
-                {errors.correo && <span className="text-red-400 text-xs mt-0.5 block">{errors.correo.message}</span>}
+                {errors.nombre && <span className="text-red-400 text-xs mt-0.5 block">{errors.nombre.message}</span>}
               </div>
 
-              {/* Teléfono y Dirección */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                    Teléfono <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={9}
-                    {...register("telefono", {
-                      required: "Teléfono requerido",
-                      pattern: { value: /^[0-9]{9}$/, message: "9 dígitos numéricos" }
-                    })}
-                    className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                      errors.telefono ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="987654321"
-                  />
-                  {errors.telefono && <span className="text-red-400 text-xs mt-0.5 block">{errors.telefono.message}</span>}
-                </div>
-
-                <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                    Dirección <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    {...register("direccion", { required: "Dirección requerida" })}
-                    className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                      errors.direccion ? "border-red-500" : "border-gray-300"
-                    }`}
-                    placeholder="Av. Principal 123"
-                  />
-                  {errors.direccion && <span className="text-red-400 text-xs mt-0.5 block">{errors.direccion.message}</span>}
-                </div>
-              </div>
-
-              {/* Rol */}
+              {/* Apellidos */}
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                  Rol <span className="text-red-500">*</span>
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                  Apellidos <span className="text-red-500">*</span>
                 </label>
-                <select
-                  {...register("perfil", { required: "Seleccione un rol" })}
-                  className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                    errors.perfil ? "border-red-500" : "border-gray-300"
+                <input
+                  type="text"
+                  {...register("apellidos", {
+                    required: "Apellidos requeridos",
+                    minLength: { value: 2, message: "Mínimo 2 caracteres" }
+                  })}
+                  className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                    errors.apellidos ? "border-red-500" : "border-blue-500/30"
                   }`}
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="vendedor">Vendedor</option>
-                  <option value="gerente">Gerente</option>
-                  <option value="administrador">Administrador</option>
-                </select>
-                {errors.perfil && <span className="text-red-400 text-xs mt-0.5 block">{errors.perfil.message}</span>}
+                  placeholder="Pérez García"
+                />
+                {errors.apellidos && <span className="text-red-400 text-xs mt-0.5 block">{errors.apellidos.message}</span>}
               </div>
 
-              {/* Sucursal condicional */}
-              {perfil === "vendedor" && (
+              {/* Correo + Rol en la misma fila */}
+              <div className="grid grid-cols-2 gap-2">
                 <div className="relative">
-                  <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
-                    Sucursal <span className="text-red-500">*</span>
+                  <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                    Correo <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    {...register("correo", {
+                      required: "Correo requerido",
+                      pattern: { value: /^\S+@\S+$/i, message: "Correo inválido" }
+                    })}
+                    className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                      errors.correo ? "border-red-500" : "border-blue-500/30"
+                    }`}
+                    placeholder="correo@ejemplo.com"
+                  />
+                  {errors.correo && <span className="text-red-400 text-xs mt-0.5 block">{errors.correo.message}</span>}
+                </div>
+
+                <div className="relative">
+                  <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                    Rol <span className="text-red-500">*</span>
                   </label>
                   <select
-                    {...register("sucursal_id", {
-                      required: perfil === "vendedor" ? "Seleccione una sucursal" : false
-                    })}
-                    className={`w-full px-3 py-2.5 bg-gray-800/30 border-2 border-gray-600/30 text-white rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:border-blue-400/50 ${
-                      errors.sucursal_id ? "border-red-500" : "border-gray-300"
+                    {...register("perfil", { required: "Seleccione un rol" })}
+                    className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                      errors.perfil ? "border-red-500" : "border-blue-500/30"
                     }`}
                   >
-                    <option value="">Seleccionar...</option>
-                    {sucursales.map((suc) => (
-                      <option key={suc.ID || suc.id} value={suc.ID || suc.id}>
-                        {suc.nombre || suc.Nombre}
-                      </option>
-                    ))}
+                    <option value="" className="bg-slate-900">Seleccionar...</option>
+                    <option value="vendedor" className="bg-slate-900">Vendedor</option>
+                    <option value="gerente" className="bg-slate-900">Gerente</option>
+                    <option value="administrador" className="bg-slate-900">Administrador</option>
                   </select>
-                  {errors.sucursal_id && <span className="text-red-400 text-xs mt-0.5 block">{errors.sucursal_id.message}</span>}
+                  {errors.perfil && <span className="text-red-400 text-xs mt-0.5 block">{errors.perfil.message}</span>}
                 </div>
-              )}
+              </div>
+
+              {/* Teléfono */}
+              <div className="relative">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                  Teléfono <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  maxLength={9}
+                  {...register("telefono", {
+                    required: "Teléfono requerido",
+                    pattern: { value: /^[0-9]{9}$/, message: "9 dígitos numéricos" }
+                  })}
+                  className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                    errors.telefono ? "border-red-500" : "border-blue-500/30"
+                  }`}
+                  placeholder="987654321"
+                />
+                {errors.telefono && <span className="text-red-400 text-xs mt-0.5 block">{errors.telefono.message}</span>}
+              </div>
+
+              {/* Dirección */}
+              <div className="relative">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                  Dirección <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  {...register("direccion", { required: "Dirección requerida" })}
+                  className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                    errors.direccion ? "border-red-500" : "border-blue-500/30"
+                  }`}
+                  placeholder="Av. Principal 123"
+                />
+                {errors.direccion && <span className="text-red-400 text-xs mt-0.5 block">{errors.direccion.message}</span>}
+              </div>
+
+              {/* Sucursal - siempre visible */}
+              <div className="relative">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
+                  Sucursal <span className="text-red-500">*</span>
+                </label>
+                <select
+                  {...register("sucursal_id", { required: "Seleccione una sucursal" })}
+                  className={`w-full px-3 py-1.5 bg-blue-800/30 border border-blue-500/30 text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
+                    errors.sucursal_id ? "border-red-500" : "border-blue-500/30"
+                  }`}
+                >
+                  <option value="" className="bg-slate-900">Seleccionar sucursal...</option>
+                  {sucursales.map((suc) => (
+                    <option key={suc.ID || suc.id} value={suc.ID || suc.id} className="bg-slate-900">
+                      {suc.nombre || suc.Nombre}
+                    </option>
+                  ))}
+                </select>
+                {errors.sucursal_id && <span className="text-red-400 text-xs mt-0.5 block">{errors.sucursal_id.message}</span>}
+              </div>
 
               {/* Contraseña */}
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
                   Contraseña <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -442,15 +470,16 @@ export function SignUp() {
                         hasNumber: (v) => /[0-9]/.test(v) || "Debe tener un número",
                         hasSpecial: (v) => /[^A-Za-z0-9]/.test(v) || "Debe tener un carácter especial",
                       },
+                      onChange: () => { if (watch("confirmPassword")) trigger("confirmPassword"); },
                     })}
-                    className={`w-full px-3 py-2 pr-10 bg-white/90 border rounded-lg text-gray-900 text-sm focus:outline-none focus:border-blue-400/50 ${
+                    className={`w-full px-3 py-1.5 pr-10 bg-blue-800/30 border border-blue-500/30 rounded-lg text-white text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
                       errors.password ? "border-red-500" : "border-gray-300"
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors"
                   >
                     {showPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
                   </button>
@@ -502,7 +531,7 @@ export function SignUp() {
 
               {/* Confirmar contraseña */}
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-gray-900/80 text-xs font-medium text-gray-300 z-10">
+                <label className="absolute -top-2 left-3 px-1 bg-slate-900/90 text-xs font-medium text-sky-200 z-10">
                   Confirmar Contraseña <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
@@ -513,14 +542,14 @@ export function SignUp() {
                       required: "Confirme la contraseña",
                       validate: (value) => value === passwordNueva || "Las contraseñas no coinciden",
                     })}
-                    className={`w-full px-3 py-2 pr-10 bg-white/90 border rounded-lg text-gray-900 text-sm focus:outline-none focus:border-blue-400/50 ${
+                    className={`w-full px-3 py-1.5 pr-10 bg-blue-800/30 border border-blue-500/30 rounded-lg text-white text-sm placeholder-blue-300/40 focus:outline-none focus:ring-2 focus:ring-sky-400/80 focus:border-transparent ${
                       errors.confirmPassword ? "border-red-500" : "border-gray-300"
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-sky-400/80 hover:text-sky-300 transition-colors"
                   >
                     {showConfirmPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
                   </button>
@@ -534,7 +563,7 @@ export function SignUp() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600/80 hover:bg-blue-700/80 text-white font-semibold py-2.5 rounded-lg transition-all disabled:bg-gray-500/50 disabled:cursor-not-allowed mt-3 shadow-lg"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-600 via-sky-500 to-sky-600 hover:from-sky-700 hover:via-sky-600 hover:to-sky-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mt-3 text-sm"
               >
                 {loading ? "Registrando..." : "Crear Cuenta"}
               </button>

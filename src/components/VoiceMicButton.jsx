@@ -9,12 +9,14 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
   const [status, setStatus] = useState("idle"); // idle | listening | processing | speaking
   const [connected, setConnected] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [popupPos, setPopupPos] = useState(null); // posición fixed del popup
 
   const wsRef = useRef(null);
   const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef("");
   const fullTranscriptRef = useRef(""); // final + interim (siempre completo)
   const listeningRef = useRef(false);
+  const wrapperRef = useRef(null); // ref para calcular posición fixed del popup
 
   // Refs para valores usados dentro del WebSocket handler (evitar closures obsoletos)
   const executeActionRef = useRef(executeAction);
@@ -54,6 +56,18 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
     ? "CONTEXTO: Estás DENTRO del formulario de SUCURSALES. Solo creas o editas sucursales aquí. Si saludan o preguntan qué haces, responde: 'Estoy aquí para gestionar sucursales, dicta los datos'. Extrae: nombre, direccion, telefono, regla_clientes. Usa fill_sucursal_form con los datos." + restriccionComun
     : "";
   const instruccionFinal = instruccionProp || instruccionDefault;
+
+  // Calcular posición fixed del popup al abrir (evita recorte por overflow:hidden del padre)
+  useEffect(() => {
+    if ((listening || status === "processing") && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setPopupPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+        left: rect.left + rect.width / 2,
+      });
+    }
+  }, [listening, status]);
 
   // Auto-reenviar texto pendiente cuando categoría esté lista
   useEffect(() => {
@@ -255,21 +269,6 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
       const text = finalTranscriptRef.current.trim() || fullTranscriptRef.current.trim();
 
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && text) {
-        // Validar categoría si es modo producto (imagen es opcional)
-        if (isProductMode && !categoriaId) {
-          const falta = [];
-          if (!categoriaId) falta.push("categoría");
-          pendingTextRef.current = text;
-          setStatus("idle");
-          window.speechSynthesis.cancel();
-          const msg = `Primero agrega ${falta.join(" y ")}`;
-          const utt = new SpeechSynthesisUtterance(msg);
-          utt.lang = "es-PE";
-          window.speechSynthesis.speak(utt);
-          toast.warning(`Falta: ${falta.join(" y ")}. Tu dictado queda guardado.`);
-          return;
-        }
-
         setStatus("processing");
         const payload = { text };
         if (accion) {
@@ -339,7 +338,7 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
   const transcriptWidth = isLg ? "w-80" : "w-64";
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       {/* Botón circular */}
       <button
         onClick={handleClick}
@@ -416,9 +415,19 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
         }`}></span>
       </button>
 
-      {/* Transcript flotante */}
-      {(listening || status === "processing") && (
-        <div className={`absolute top-full ${isLg ? "left-1/2 -translate-x-1/2" : "right-0"} mt-2 z-50 ${transcriptWidth} animate-fade-in`}>
+      {/* Transcript flotante — usa fixed para no cortarse con overflow:hidden del padre */}
+      {(listening || status === "processing") && popupPos && (
+        <div
+          className={`${transcriptWidth} animate-fade-in`}
+          style={{
+            position: "fixed",
+            top: popupPos.top,
+            ...(isLg
+              ? { left: popupPos.left, transform: "translateX(-50%)" }
+              : { right: popupPos.right }),
+            zIndex: 9999,
+          }}
+        >
           <div className="bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2.5 rounded-xl shadow-2xl border border-gray-700/50">
             <div className="flex items-center gap-2 mb-1">
               {listening ? (
@@ -468,8 +477,11 @@ export default function VoiceMicButton({ categoriaId, accion, onProductoCreado, 
       )}
 
       {/* Indicador de respuesta para size lg */}
-      {isLg && status === "speaking" && !listening && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 animate-fade-in">
+      {isLg && status === "speaking" && !listening && popupPos && (
+        <div
+          className="animate-fade-in"
+          style={{ position: "fixed", top: popupPos.top, left: popupPos.left, transform: "translateX(-50%)", zIndex: 9999 }}
+        >
           <div className="bg-gray-900/90 backdrop-blur-sm text-white text-xs px-4 py-2 rounded-xl shadow-2xl border border-gray-700/50 whitespace-nowrap flex items-center gap-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             <span>Respondiendo...</span>

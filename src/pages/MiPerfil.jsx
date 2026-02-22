@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useForm } from "react-hook-form";
 import { NombreContexto } from "../App2";
 import { toast } from "sonner";
@@ -9,8 +9,6 @@ import { comprimirImagen } from "../funciones/funciones";
 import { buildImageUrl } from "../funciones/imageUtils";
 import { API_BASE_URL } from "../config";
 
-const API_URL = API_BASE_URL;
-
 const getAuthHeaders = () => {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -19,16 +17,13 @@ const getAuthHeaders = () => {
 export default function MiPerfil() {
   const { usuario, actualizarUsuario } = useContext(NombreContexto);
 
-  // Form para datos personales
   const {
     register: registerPerfil,
     handleSubmit: handleSubmitPerfil,
     formState: { errors: errorsPerfil },
     setValue: setValuePerfil,
-    watch: watchPerfil,
   } = useForm();
 
-  // Form para cambio de contraseña
   const {
     register: registerPassword,
     handleSubmit: handleSubmitPassword,
@@ -48,11 +43,10 @@ export default function MiPerfil() {
 
   const passwordNueva = watchPassword("passwordNueva");
 
-  // Cargar datos del usuario actual
   useEffect(() => {
     const fetchMisDatos = async () => {
       try {
-        const res = await fetch(`${API_URL}/empleados/mi-perfil`, {
+        const res = await fetch(`${API_BASE_URL}/empleados/mi-perfil`, {
           headers: getAuthHeaders(),
         });
         if (res.ok) {
@@ -63,11 +57,10 @@ export default function MiPerfil() {
           setValuePerfil("correo", data.Correo || "");
           setValuePerfil("telefono", data.Telefono || "");
           setValuePerfil("dni", data.DNI || "");
-          if (data.imagen) {
-            setPreviewImage(buildImageUrl(data.imagen));
-          }
+          const img = data.Imagen || data.imagen;
+          if (img) setPreviewImage(buildImageUrl(img));
         }
-      } catch (err) {
+      } catch {
         toast.error("Error al cargar los datos del perfil");
       }
     };
@@ -76,35 +69,31 @@ export default function MiPerfil() {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.warning("La imagen no debe superar los 5MB");
-        return;
-      }
-      setSelectedFile(file);
-      setPreviewImage(URL.createObjectURL(file));
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.warning("La imagen no debe superar los 5MB");
+      return;
     }
+    setSelectedFile(file);
+    setPreviewImage(URL.createObjectURL(file));
   };
 
-  // Guardar cambios del perfil
   const onSubmitPerfil = async (data) => {
     setIsLoading(true);
-
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append("Nombre", data.nombre);
-      formDataToSend.append("Apellidos", data.apellidos);
-      formDataToSend.append("Correo", data.correo);
-      formDataToSend.append("Telefono", data.telefono || "");
-
+      const formData = new FormData();
+      formData.append("Nombre", data.nombre);
+      formData.append("Apellidos", data.apellidos);
+      formData.append("Correo", data.correo);
+      formData.append("Telefono", data.telefono || "");
       if (selectedFile) {
-        formDataToSend.append("Imagen", await comprimirImagen(selectedFile));
+        formData.append("Imagen", await comprimirImagen(selectedFile));
       }
 
-      const res = await fetch(`${API_URL}/empleados/mi-perfil`, {
+      const res = await fetch(`${API_BASE_URL}/empleados/mi-perfil`, {
         method: "PUT",
         headers: getAuthHeaders(),
-        body: formDataToSend,
+        body: formData,
       });
 
       if (!res.ok) {
@@ -113,10 +102,9 @@ export default function MiPerfil() {
       }
 
       const updatedData = await res.json();
-
-      // Actualizar contexto con nueva imagen si cambió
-      if (actualizarUsuario && updatedData.imagen) {
-        actualizarUsuario({ imagenUrl: updatedData.imagen });
+      const nuevaImagen = updatedData.Imagen || updatedData.imagen;
+      if (actualizarUsuario && nuevaImagen) {
+        actualizarUsuario({ imagen: nuevaImagen });
       }
 
       toast.success("Perfil actualizado correctamente");
@@ -128,17 +116,12 @@ export default function MiPerfil() {
     }
   };
 
-  // Cambiar contraseña
   const onSubmitPassword = async (data) => {
     setIsChangingPassword(true);
-
     try {
-      const res = await fetch(`${API_URL}/empleados/cambiar-password`, {
+      const res = await fetch(`${API_BASE_URL}/empleados/cambiar-password`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           password_actual: data.passwordActual,
           password_nueva: data.passwordNueva,
@@ -159,7 +142,6 @@ export default function MiPerfil() {
     }
   };
 
-  // Validación de fortaleza de contraseña
   const getPasswordStrength = (pwd) => {
     if (!pwd) return { score: 0, label: "", color: "bg-gray-400", checks: {} };
     let score = 0;
@@ -175,7 +157,6 @@ export default function MiPerfil() {
     if (checks.lowercase) score++;
     if (checks.number) score++;
     if (checks.special) score++;
-
     if (score <= 2) return { score, label: "Débil", color: "bg-red-500", checks };
     if (score <= 3) return { score, label: "Media", color: "bg-yellow-500", checks };
     if (score <= 4) return { score, label: "Buena", color: "bg-blue-500", checks };
@@ -184,219 +165,193 @@ export default function MiPerfil() {
 
   const passwordStrength = getPasswordStrength(passwordNueva);
 
+  const inputClass = (error) =>
+    `w-full border rounded px-2 py-1 text-sm text-gray-900 ${error ? "border-red-500" : "border-gray-300"}`;
+
+  const labelClass = "absolute -top-2 left-3 bg-sky-50 px-1 text-xs font-medium text-gray-700 z-10";
+
   return (
-    <div className="p-2 sm:p-4 bg-blue-50 min-h-screen">
+    <div className="p-3 bg-blue-50 min-h-screen text-sm">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-md p-3 mb-4 max-w-4xl mx-auto">
-        <h1 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-gray-800">
-          <User className="w-5 h-5 sm:w-6 sm:h-6" />
-          MI PERFIL
-        </h1>
+      <div className="bg-white rounded-lg shadow-md p-2.5 mb-3 flex items-center gap-2">
+        <User className="w-5 h-5 text-blue-500" />
+        <h1 className="text-base font-bold text-gray-800">Mi Perfil</h1>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-        {/* Tarjeta de información personal */}
-        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-5">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <User className="w-5 h-5 text-sky-500" />
-            Información Personal
-          </h2>
+      <div className="grid gap-3 md:grid-cols-2">
+        {/* COLUMNA 1 - Datos personales */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-blue-400 p-2 flex items-center gap-2">
+            <User className="w-4 h-4 text-white" />
+            <h2 className="text-sm font-bold text-white">Información Personal</h2>
+          </div>
 
-          <form onSubmit={handleSubmitPerfil(onSubmitPerfil)} className="space-y-3">
-            {/* Foto de perfil */}
-            <div className="flex flex-col items-center mb-4">
+          <form
+            onSubmit={handleSubmitPerfil(onSubmitPerfil)}
+            className="p-2.5 bg-sky-50 space-y-2.5 max-h-[calc(100vh-160px)] overflow-y-auto"
+          >
+            {/* Foto */}
+            <div className="flex flex-col items-center mb-1">
               <div className="relative">
                 {previewImage ? (
                   <img
                     src={previewImage}
-                    alt="Foto de perfil"
-                    className="w-20 h-20 rounded-full object-cover border-4 border-sky-400 shadow-lg"
+                    alt="Foto"
+                    className="w-16 h-16 rounded-full object-cover border-2 border-blue-400 shadow"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border-4 border-sky-400">
-                    <User className="w-10 h-10 text-gray-400" />
+                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center border-2 border-blue-400">
+                    <User className="w-8 h-8 text-gray-400" />
                   </div>
                 )}
-                <label className="absolute bottom-0 right-0 bg-sky-500 hover:bg-sky-600 text-white p-1.5 rounded-full cursor-pointer shadow-lg transition-colors">
-                  <Camera className="w-3.5 h-3.5" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
+                <label className="absolute bottom-0 right-0 bg-sky-500 hover:bg-sky-600 text-white p-0.5 rounded-full cursor-pointer">
+                  <Camera className="w-3 h-3" />
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                 </label>
               </div>
-              <p className="text-sm text-gray-500 mt-2 capitalize">
+              <p className="text-xs text-gray-500 mt-1 capitalize font-medium">
                 {misDatos?.Perfil || usuario?.perfil}
               </p>
             </div>
 
             {/* DNI (solo lectura) */}
             <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-500 z-10">
-                DNI <span className="text-red-500">*</span>
-              </label>
+              <label className={labelClass}>DNI</label>
               <input
                 type="text"
                 disabled
                 {...registerPerfil("dni")}
-                className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-500 cursor-not-allowed text-sm"
+                className="w-full border rounded px-2 py-1 text-sm text-gray-400 bg-gray-100 cursor-not-allowed border-gray-300"
               />
             </div>
 
-            {/* Nombre */}
-            <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10">
-                Nombre <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                {...registerPerfil("nombre", {
-                  required: "El nombre es requerido",
-                  minLength: { value: 2, message: "Mínimo 2 caracteres" },
-                })}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent ${
-                  errorsPerfil.nombre ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errorsPerfil.nombre && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPerfil.nombre.message}</span>
-              )}
+            {/* Nombre y Apellidos en 2 columnas */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <label className={labelClass}>Nombre <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  {...registerPerfil("nombre", {
+                    required: "Requerido",
+                    minLength: { value: 2, message: "Mín. 2 caracteres" },
+                  })}
+                  className={inputClass(errorsPerfil.nombre)}
+                />
+                {errorsPerfil.nombre && (
+                  <span className="text-red-500 text-[10px]">{errorsPerfil.nombre.message}</span>
+                )}
+              </div>
+              <div className="relative">
+                <label className={labelClass}>Apellidos <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  {...registerPerfil("apellidos", { required: "Requerido" })}
+                  className={inputClass(errorsPerfil.apellidos)}
+                />
+                {errorsPerfil.apellidos && (
+                  <span className="text-red-500 text-[10px]">{errorsPerfil.apellidos.message}</span>
+                )}
+              </div>
             </div>
 
-            {/* Apellidos */}
-            <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10">
-                Apellidos <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                {...registerPerfil("apellidos", {
-                  required: "Los apellidos son requeridos",
-                })}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent ${
-                  errorsPerfil.apellidos ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errorsPerfil.apellidos && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPerfil.apellidos.message}</span>
-              )}
+            {/* Correo y Teléfono en 2 columnas */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <label className={labelClass}><Mail className="w-3 h-3 inline mr-0.5" />Correo <span className="text-red-500">*</span></label>
+                <input
+                  type="email"
+                  {...registerPerfil("correo", {
+                    required: "Requerido",
+                    pattern: { value: /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, message: "No válido" },
+                  })}
+                  className={inputClass(errorsPerfil.correo)}
+                />
+                {errorsPerfil.correo && (
+                  <span className="text-red-500 text-[10px]">{errorsPerfil.correo.message}</span>
+                )}
+              </div>
+              <div className="relative">
+                <label className={labelClass}><Phone className="w-3 h-3 inline mr-0.5" />Teléfono <span className="text-red-500">*</span></label>
+                <input
+                  type="tel"
+                  maxLength={9}
+                  {...registerPerfil("telefono", {
+                    required: "Requerido",
+                    pattern: { value: /^[0-9]{9}$/, message: "9 dígitos" },
+                  })}
+                  className={inputClass(errorsPerfil.telefono)}
+                />
+                {errorsPerfil.telefono && (
+                  <span className="text-red-500 text-[10px]">{errorsPerfil.telefono.message}</span>
+                )}
+              </div>
             </div>
 
-            {/* Correo */}
-            <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10 flex items-center gap-1">
-                <Mail className="w-3 h-3" />
-                Correo <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                {...registerPerfil("correo", {
-                  required: "El correo es requerido",
-                  pattern: {
-                    value: /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
-                    message: "Correo no válido",
-                  },
-                })}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent ${
-                  errorsPerfil.correo ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errorsPerfil.correo && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPerfil.correo.message}</span>
-              )}
-            </div>
-
-            {/* Teléfono */}
-            <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10 flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                Teléfono <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                placeholder="987654321"
-                maxLength={9}
-                {...registerPerfil("telefono", {
-                  required: "El teléfono es requerido",
-                  pattern: {
-                    value: /^[0-9]{9}$/,
-                    message: "Debe tener 9 dígitos numéricos",
-                  },
-                })}
-                className={`w-full px-3 py-2 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent ${
-                  errorsPerfil.telefono ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errorsPerfil.telefono && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPerfil.telefono.message}</span>
-              )}
-            </div>
-
-            {/* Botón guardar */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+              className="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded text-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Guardando...
-                </>
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Guardando...</>
               ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Guardar Cambios
-                </>
+                <><Save className="w-3.5 h-3.5" />Guardar Cambios</>
               )}
             </button>
+
+            {/* Info cuenta */}
+            {misDatos && (
+              <div className="flex items-center justify-between bg-white rounded border border-gray-200 px-2 py-1.5 mt-1">
+                <div className="flex items-center gap-1.5">
+                  {misDatos.Estado === "activo"
+                    ? <CheckCircle className="w-4 h-4 text-green-500" />
+                    : <XCircle className="w-4 h-4 text-amber-500" />}
+                  <span className={`text-xs font-semibold ${misDatos.Estado === "activo" ? "text-green-600" : "text-amber-600"}`}>
+                    {misDatos.Estado === "activo" ? "Cuenta Activa" : misDatos.Estado}
+                  </span>
+                </div>
+                {misDatos.Salario > 0 && (
+                  <span className="text-xs text-green-600 font-semibold">S/ {misDatos.Salario?.toFixed(2)}</span>
+                )}
+              </div>
+            )}
           </form>
         </div>
 
-        {/* Tarjeta de cambio de contraseña */}
-        <div className="bg-white rounded-xl shadow-lg p-3 sm:p-5">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-amber-500" />
-            Cambiar Contraseña
-          </h2>
+        {/* COLUMNA 2 - Cambiar contraseña */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="bg-blue-400 p-2 flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-white" />
+            <h2 className="text-sm font-bold text-white">Cambiar Contraseña</h2>
+          </div>
 
-          <form onSubmit={handleSubmitPassword(onSubmitPassword)} className="space-y-3">
+          <form
+            onSubmit={handleSubmitPassword(onSubmitPassword)}
+            className="p-2.5 bg-sky-50 space-y-2.5 max-h-[calc(100vh-160px)] overflow-y-auto"
+          >
             {/* Contraseña actual */}
             <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10">
-                Contraseña actual <span className="text-red-500">*</span>
-              </label>
+              <label className={labelClass}>Contraseña actual <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type={showCurrentPassword ? "text" : "password"}
-                  placeholder="Ingrese su contraseña actual"
-                  {...registerPassword("passwordActual", {
-                    required: "Ingrese su contraseña actual",
-                  })}
-                  className={`w-full px-3 py-2 pr-10 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                    errorsPassword.passwordActual ? "border-red-500" : "border-gray-300"
-                  }`}
+                  placeholder="Contraseña actual"
+                  {...registerPassword("passwordActual", { required: "Ingrese su contraseña actual" })}
+                  className={`${inputClass(errorsPassword.passwordActual)} pr-8`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showCurrentPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showCurrentPassword ? <FaEyeSlash size={13} /> : <FaEye size={13} />}
                 </button>
               </div>
               {errorsPassword.passwordActual && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPassword.passwordActual.message}</span>
+                <span className="text-red-500 text-[10px]">{errorsPassword.passwordActual.message}</span>
               )}
             </div>
 
             {/* Nueva contraseña */}
             <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10">
-                Nueva contraseña <span className="text-red-500">*</span>
-              </label>
+              <label className={labelClass}>Nueva contraseña <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type={showNewPassword ? "text" : "password"}
@@ -411,51 +366,35 @@ export default function MiPerfil() {
                       hasSpecial: (v) => /[^A-Za-z0-9]/.test(v) || "Debe tener un carácter especial",
                     },
                   })}
-                  className={`w-full px-3 py-2 pr-10 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                    errorsPassword.passwordNueva ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className={`${inputClass(errorsPassword.passwordNueva)} pr-8`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showNewPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showNewPassword ? <FaEyeSlash size={13} /> : <FaEye size={13} />}
                 </button>
               </div>
               {errorsPassword.passwordNueva && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPassword.passwordNueva.message}</span>
+                <span className="text-red-500 text-[10px]">{errorsPassword.passwordNueva.message}</span>
               )}
-              {/* Barra de fortaleza e indicadores */}
               {passwordNueva && (
-                <div className="mt-2">
-                  <div className="flex gap-1 mb-1">
+                <div className="mt-1.5">
+                  <div className="flex gap-1 mb-0.5">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded ${
-                          i <= passwordStrength.score ? passwordStrength.color : "bg-gray-200"
-                        }`}
-                      />
+                      <div key={i} className={`h-1 flex-1 rounded ${i <= passwordStrength.score ? passwordStrength.color : "bg-gray-200"}`} />
                     ))}
                   </div>
-                  <p className={`text-xs ${passwordStrength.color.replace("bg-", "text-")}`}>
-                    Seguridad: {passwordStrength.label}
-                  </p>
-                  {/* Indicadores de requisitos */}
-                  <div className="grid grid-cols-2 gap-x-2 mt-1">
-                    <span className={`text-[10px] ${passwordStrength.checks?.uppercase ? "text-green-500" : "text-gray-400"}`}>
-                      {passwordStrength.checks?.uppercase ? "✓" : "○"} Mayúscula
-                    </span>
-                    <span className={`text-[10px] ${passwordStrength.checks?.lowercase ? "text-green-500" : "text-gray-400"}`}>
-                      {passwordStrength.checks?.lowercase ? "✓" : "○"} Minúscula
-                    </span>
-                    <span className={`text-[10px] ${passwordStrength.checks?.number ? "text-green-500" : "text-gray-400"}`}>
-                      {passwordStrength.checks?.number ? "✓" : "○"} Número
-                    </span>
-                    <span className={`text-[10px] ${passwordStrength.checks?.special ? "text-green-500" : "text-gray-400"}`}>
-                      {passwordStrength.checks?.special ? "✓" : "○"} Especial (!@#$)
-                    </span>
+                  <p className="text-[10px] text-gray-600">Seguridad: <span className="font-semibold">{passwordStrength.label}</span></p>
+                  <div className="grid grid-cols-2 gap-x-2 mt-0.5">
+                    {[
+                      { key: "uppercase", label: "Mayúscula" },
+                      { key: "lowercase", label: "Minúscula" },
+                      { key: "number", label: "Número" },
+                      { key: "special", label: "Especial" },
+                    ].map(({ key, label }) => (
+                      <span key={key} className={`text-[10px] ${passwordStrength.checks[key] ? "text-green-600" : "text-gray-400"}`}>
+                        {passwordStrength.checks[key] ? "✓" : "○"} {label}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
@@ -463,9 +402,7 @@ export default function MiPerfil() {
 
             {/* Confirmar contraseña */}
             <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white text-xs font-medium text-gray-700 z-10">
-                Confirmar contraseña <span className="text-red-500">*</span>
-              </label>
+              <label className={labelClass}>Confirmar contraseña <span className="text-red-500">*</span></label>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? "text" : "password"}
@@ -474,84 +411,38 @@ export default function MiPerfil() {
                     required: "Confirme la contraseña",
                     validate: (value) => value === passwordNueva || "Las contraseñas no coinciden",
                   })}
-                  className={`w-full px-3 py-2 pr-10 bg-white border rounded-lg text-gray-900 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                    errorsPassword.confirmarPassword ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className={`${inputClass(errorsPassword.confirmarPassword)} pr-8`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showConfirmPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showConfirmPassword ? <FaEyeSlash size={13} /> : <FaEye size={13} />}
                 </button>
               </div>
               {errorsPassword.confirmarPassword && (
-                <span className="text-red-500 text-xs mt-0.5 block">{errorsPassword.confirmarPassword.message}</span>
+                <span className="text-red-500 text-[10px]">{errorsPassword.confirmarPassword.message}</span>
               )}
             </div>
 
-            {/* Botón cambiar contraseña */}
             <button
               type="submit"
               disabled={isChangingPassword}
-              className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-semibold rounded-lg shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded text-sm disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isChangingPassword ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Cambiando...
-                </>
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Cambiando...</>
               ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  Cambiar Contraseña
-                </>
+                <><Lock className="w-3.5 h-3.5" />Cambiar Contraseña</>
               )}
             </button>
-          </form>
 
-          {/* Info adicional */}
-          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-700">
-              <strong>Nota:</strong> Por seguridad, deberás iniciar sesión nuevamente después de cambiar tu contraseña.
-            </p>
-          </div>
+            <div className="bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+              <p className="text-[10px] text-amber-700">
+                <strong>Nota:</strong> Deberás iniciar sesión nuevamente después de cambiar tu contraseña.
+              </p>
+            </div>
+          </form>
         </div>
       </div>
-
-      {/* Info del estado de cuenta */}
-      {misDatos && (
-        <div className="mt-6 bg-white rounded-xl shadow-lg p-3 sm:p-4 max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-3">
-              {misDatos.Estado === "activo" ? (
-                <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 flex-shrink-0" />
-              ) : (
-                <XCircle className="w-6 h-6 sm:w-8 sm:h-8 text-amber-500 flex-shrink-0" />
-              )}
-              <div>
-                <p className="text-xs sm:text-sm text-gray-500">Estado de cuenta</p>
-                <p className={`font-semibold text-sm sm:text-base ${
-                  misDatos.Estado === "activo" ? "text-green-600" : "text-amber-600"
-                }`}>
-                  {misDatos.Estado === "activo" ? "Cuenta Activa" : misDatos.Estado}
-                </p>
-              </div>
-            </div>
-            <div className="sm:text-right">
-              <p className="text-xs sm:text-sm text-gray-500">Rol asignado</p>
-              <p className="font-semibold text-sm sm:text-base text-sky-600 capitalize">{misDatos.Perfil}</p>
-            </div>
-            {misDatos.Salario > 0 && (
-              <div className="sm:text-right">
-                <p className="text-xs sm:text-sm text-gray-500">Salario</p>
-                <p className="font-semibold text-sm sm:text-base text-green-600">S/ {misDatos.Salario?.toFixed(2)}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
